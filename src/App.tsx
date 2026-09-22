@@ -34,6 +34,7 @@ export function App() {
     closeInspector,
     openInspector,
     openDroppedFiles,
+    openDroppedFilePaths,
     checkForExternalFileChanges,
   } = useWorkspaceStore()
 
@@ -42,6 +43,45 @@ export function App() {
   useEffect(() => {
     initWorkspace()
   }, [initWorkspace])
+
+  // Tauri Desktop Native Drag-and-Drop listener
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    const setupTauriDrop = async () => {
+      const isTauri =
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+            (window as unknown as { __TAURI__?: unknown }).__TAURI__
+        )
+      if (!isTauri) return
+
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+        const webview = getCurrentWebview()
+        unlisten = await webview.onDragDropEvent((event) => {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
+            setIsDragOver(true)
+          } else if (event.payload.type === 'leave') {
+            setIsDragOver(false)
+          } else if (event.payload.type === 'drop') {
+            setIsDragOver(false)
+            const paths = event.payload.paths
+            if (paths && paths.length > 0) {
+              openDroppedFilePaths(paths)
+            }
+          }
+        })
+      } catch (err) {
+        console.warn('Tauri onDragDropEvent listener not available:', err)
+      }
+    }
+
+    setupTauriDrop()
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [openDroppedFilePaths])
 
   // Periodic & window focus listener for external file changes
   useEffect(() => {

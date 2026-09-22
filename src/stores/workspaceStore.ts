@@ -52,7 +52,9 @@ export interface WorkspaceState {
   initWorkspace: () => Promise<void>
   refreshFileTree: () => Promise<void>
   openLocalDirectory: () => Promise<void>
+  openLocalFile: () => Promise<void>
   openDroppedFiles: (files: File[]) => Promise<void>
+  openDroppedFilePaths: (paths: string[]) => Promise<void>
   openFile: (path: string, targetAnchor?: string) => Promise<void>
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
@@ -150,6 +152,44 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     openLocalDirectory: async () => {
+      const isTauri =
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+            (window as unknown as { __TAURI__?: unknown }).__TAURI__
+        )
+
+      if (isTauri) {
+        try {
+          const { open } = await import('@tauri-apps/plugin-dialog')
+          const selected = await open({
+            directory: true,
+            multiple: false,
+            title: 'Open Workspace Folder',
+          })
+          if (selected && typeof selected === 'string') {
+            const adapter = getFileSystemAdapter()
+            if (adapter.setWorkspaceRoot) {
+              await adapter.setWorkspaceRoot(selected)
+            }
+            const files = await adapter.listDirectory('/')
+            set({ fileTree: files, tabs: [], activeTabId: null })
+
+            const firstMd = files.find(
+              (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+            )
+            if (firstMd) {
+              await get().openFile(firstMd.path)
+            }
+            const folderName = selected.split('/').filter(Boolean).pop() || selected
+            set({ statusMessage: `Opened folder: ${folderName}` })
+          }
+          return
+        } catch (err) {
+          console.error('Failed to open local directory in desktop:', err)
+        }
+      }
+
       // Check for browser File System Access API
       if ('showDirectoryPicker' in window) {
         try {
@@ -171,13 +211,111 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         } catch (err) {
           if ((err as Error).name !== 'AbortError') {
             console.error('Failed to open local directory:', err)
-            alert('Failed to open directory: ' + (err as Error).message)
           }
         }
       } else {
         alert(
           'Your browser does not support showDirectoryPicker. You can drag and drop any markdown files or folders directly into MarkFlow!'
         )
+      }
+    },
+
+    openLocalFile: async () => {
+      const isTauri =
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+            (window as unknown as { __TAURI__?: unknown }).__TAURI__
+        )
+
+      if (isTauri) {
+        try {
+          const { open } = await import('@tauri-apps/plugin-dialog')
+          const selected = await open({
+            multiple: true,
+            title: 'Open Markdown Files',
+            filters: [
+              {
+                name: 'Markdown',
+                extensions: ['md', 'markdown', 'txt'],
+              },
+            ],
+          })
+          if (selected) {
+            const paths = Array.isArray(selected) ? selected : [selected]
+            await get().openDroppedFilePaths(paths)
+          }
+          return
+        } catch (err) {
+          console.error('Failed to open local file in desktop:', err)
+        }
+      }
+    },
+
+    openDroppedFilePaths: async (paths: string[]) => {
+      const adapter = getFileSystemAdapter()
+      const newTabs: EditorTab[] = []
+
+      for (const filePath of paths) {
+        const name = filePath.split('/').filter(Boolean).pop() || 'untitled.md'
+        if (
+          !name.endsWith('.md') &&
+          !name.endsWith('.markdown') &&
+          !name.endsWith('.txt')
+        ) {
+          // If a folder was dropped, switch workspace to it
+          try {
+            if (adapter.setWorkspaceRoot) {
+              await adapter.setWorkspaceRoot(filePath)
+              const files = await adapter.listDirectory('/')
+              set({ fileTree: files, tabs: [], activeTabId: null })
+              const first = files.find(
+                (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+              )
+              if (first) {
+                await get().openFile(first.path)
+              }
+              set({ statusMessage: `Opened folder: ${name}` })
+              return
+            }
+          } catch {}
+          continue
+        }
+
+        try {
+          let text = ''
+          if (adapter.readAbsoluteFile) {
+            text = await adapter.readAbsoluteFile(filePath)
+          } else {
+            text = await adapter.readFile(filePath)
+          }
+
+          const existing = get().tabs.find((t) => t.path === filePath)
+          if (existing) {
+            set({ activeTabId: existing.id })
+            continue
+          }
+
+          newTabs.push({
+            id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            path: filePath,
+            title: name,
+            content: text,
+            initialContent: text,
+            isDirty: false,
+          })
+        } catch (err) {
+          console.error('Failed to read dropped file:', filePath, err)
+        }
+      }
+
+      if (newTabs.length > 0) {
+        const currentTabs = get().tabs
+        set({
+          tabs: [...currentTabs, ...newTabs],
+          activeTabId: newTabs[0].id,
+          statusMessage: `Opened ${newTabs.length} file(s)`,
+        })
       }
     },
 
@@ -336,7 +474,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const adapter = getFileSystemAdapter()
     try {
       const files = await adapter.listDirectory('/')
-      set({ fileTree: files })
+      set({ fileTree: files, statusMessage: 'Ready' })
 
       // Open /welcome.md by default if available
       const welcomePath = '/welcome.md'
@@ -344,7 +482,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         await get().openFile(welcomePath)
       } catch {
         // Fallback to first markdown file if exists
-        const first = files.find((f) => !f.isDirectory && f.name.endsWith('.md'))
+        const first = files.find(
+          (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+        )
         if (first) {
           await get().openFile(first.path)
         }

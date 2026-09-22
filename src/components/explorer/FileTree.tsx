@@ -24,8 +24,16 @@ export const FileTree: React.FC = () => {
     deleteFile,
     refreshFileTree,
     openLocalDirectory,
+    openLocalFile,
     openDroppedFiles,
   } = useWorkspaceStore()
+
+  const isTauri =
+    typeof window !== 'undefined' &&
+    Boolean(
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__
+    )
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -155,7 +163,7 @@ export const FileTree: React.FC = () => {
         <div className="flex items-center gap-1">
           <button
             onClick={() => {
-              if ('showDirectoryPicker' in window) {
+              if (isTauri || 'showDirectoryPicker' in window) {
                 openLocalDirectory()
               } else {
                 folderInputRef.current?.click()
@@ -167,7 +175,13 @@ export const FileTree: React.FC = () => {
             <FolderInput size={14} />
           </button>
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (isTauri) {
+                openLocalFile()
+              } else {
+                fileInputRef.current?.click()
+              }
+            }}
             className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-cyan-400"
             title="Open Local Markdown File"
           >
@@ -197,20 +211,26 @@ export const FileTree: React.FC = () => {
             <p className="text-xs text-slate-400 mb-3 font-medium">No folder open</p>
             <button
               onClick={() => {
-                if ('showDirectoryPicker' in window) {
+                if (isTauri || 'showDirectoryPicker' in window) {
                   openLocalDirectory()
                 } else {
                   folderInputRef.current?.click()
                 }
               }}
-              className="flex items-center gap-1.5 rounded-md bg-cyan-600/30 border border-cyan-500/40 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-600/50 transition-colors mb-2 w-full justify-center"
+              className="flex items-center gap-1.5 rounded-md bg-cyan-600/30 border border-cyan-500/40 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-600/50 transition-colors mb-2 w-full justify-center cursor-pointer"
             >
               <FolderInput size={14} />
               <span>Open Local Folder</span>
             </button>
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors w-full justify-center"
+              onClick={() => {
+                if (isTauri) {
+                  openLocalFile()
+                } else {
+                  fileInputRef.current?.click()
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors w-full justify-center cursor-pointer"
             >
               <Upload size={13} />
               <span>Open Local File</span>

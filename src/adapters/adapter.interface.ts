@@ -25,4 +25,13 @@ export interface FileSystemAdapter {
   deleteEntry(path: string): Promise<void>;
   renameEntry(oldPath: string, newPath: string): Promise<void>;
   fetchExternalUrl(url: string): Promise<ReaderArticle>;
+  setWorkspaceRoot?(path: string): Promise<string>;
+  readAbsoluteFile?(path: string): Promise<string>;
+}
+
+declare global {
+  interface Window {
+    __TAURI_INTERNALS__?: unknown;
+    __TAURI__?: unknown;
+  }
 }

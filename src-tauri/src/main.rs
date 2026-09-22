@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{OnceLock, RwLock};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileEntry {
@@ -27,15 +28,7 @@ pub struct ReaderArticle {
     pub site_name: Option<String>,
 }
 
-fn get_default_workspace() -> PathBuf {
-    if let Ok(current) = std::env::current_dir() {
-        current
-    } else if let Some(home) = dirs_home() {
-        home.join("MarkFlowNotes")
-    } else {
-        PathBuf::from(".")
-    }
-}
+static ACTIVE_WORKSPACE: OnceLock<RwLock<PathBuf>> = OnceLock::new();
 
 fn dirs_home() -> Option<PathBuf> {
     std::env::var_os("HOME")
@@ -43,8 +36,61 @@ fn dirs_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+fn get_default_workspace() -> PathBuf {
+    // If current_dir is a valid custom user folder (not root, not /Applications, not .app bundle)
+    if let Ok(current) = std::env::current_dir() {
+        let s = current.to_string_lossy();
+        if !s.is_empty()
+            && s != "/"
+            && !s.starts_with("/Applications")
+            && !s.contains(".app")
+            && !s.starts_with("/System")
+        {
+            return current;
+        }
+    }
+
+    if let Some(home) = dirs_home() {
+        let docs = home.join("Documents").join("MarkFlow");
+        if !docs.exists() {
+            let _ = fs::create_dir_all(&docs);
+        }
+        let welcome = docs.join("welcome.md");
+        if !welcome.exists() {
+            let _ = fs::write(
+                &welcome,
+                "# Welcome to MarkFlow\n\nHigh-Performance Markdown & Mermaid Workspace.\n\n```mermaid\ngraph TD\n  A[Start Note] --> B(Brainstorm)\n  B --> C{Idea Valid?}\n  C -->|Yes| D[Draft Doc]\n  C -->|No| B\n```\n\n- Zero-lag live markdown editor\n- Draggable Table of Contents outline\n- Fast off-thread Mermaid diagram preview\n",
+            );
+        }
+        docs
+    } else {
+        PathBuf::from(".")
+    }
+}
+
+fn get_workspace_lock() -> &'static RwLock<PathBuf> {
+    ACTIVE_WORKSPACE.get_or_init(|| RwLock::new(get_default_workspace()))
+}
+
+fn get_current_workspace() -> PathBuf {
+    get_workspace_lock()
+        .read()
+        .map(|p| p.clone())
+        .unwrap_or_else(|_| get_default_workspace())
+}
+
+fn set_current_workspace(new_path: PathBuf) {
+    if let Ok(mut lock) = get_workspace_lock().write() {
+        *lock = new_path;
+    }
+}
+
 fn resolve_path(rel_path: &str) -> PathBuf {
-    let base = get_default_workspace();
+    let p = PathBuf::from(rel_path);
+    if p.is_absolute() && p.exists() {
+        return p;
+    }
+    let base = get_current_workspace();
     let clean = rel_path.trim_start_matches('/');
     if clean.is_empty() {
         base
@@ -55,7 +101,25 @@ fn resolve_path(rel_path: &str) -> PathBuf {
 
 #[tauri::command]
 fn get_workspace_root() -> String {
-    get_default_workspace().to_string_lossy().to_string()
+    get_current_workspace().to_string_lossy().to_string()
+}
+
+#[tauri::command]
+fn set_workspace_root(path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+    }
+    let canonical = p.canonicalize().unwrap_or(p);
+    let s = canonical.to_string_lossy().to_string();
+    set_current_workspace(canonical);
+    Ok(s)
+}
+
+#[tauri::command]
+fn read_absolute_file(path: String) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    fs::read_to_string(&p).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -206,9 +270,12 @@ fn fetch_reader_article(url: String) -> Result<ReaderArticle, String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_workspace_root,
+            set_workspace_root,
+            read_absolute_file,
             list_directory,
             read_file,
             write_file,

@@ -5,6 +5,10 @@
   "windows": ["*"],
   "permissions": [
     "core:default",
+    "core:webview:default",
+    "core:window:default",
+    "core:event:default",
+    "dialog:default",
     "updater:default"
   ]
 }
