@@ -9,7 +9,7 @@ export interface UpdateInfo {
   error?: string
 }
 
-export const CURRENT_VERSION = '1.0.0'
+export const CURRENT_VERSION = '0.1.0'
 export const GITHUB_REPO = 'AMSComm/MarkFlow'
 
 export function compareVersions(v1: string, v2: string): number {

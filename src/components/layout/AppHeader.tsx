@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 
 import { UpdateDialog } from '../common/UpdateDialog'
+import { CURRENT_VERSION } from '../../utils/updater'
 
 export const AppHeader: React.FC = () => {
   const {
@@ -262,7 +263,7 @@ export const AppHeader: React.FC = () => {
               {/* Version & Update Check */}
               <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80">
                 <div className="text-[11px] text-slate-400">
-                  MarkFlow <span className="text-cyan-400 font-mono">v1.0.0</span>
+                  MarkFlow <span className="text-cyan-400 font-mono">v{CURRENT_VERSION}</span>
                 </div>
                 <button
                   onClick={() => {
