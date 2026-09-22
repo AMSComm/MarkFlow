@@ -32,5 +32,12 @@
     "icon": [
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/AMSComm/MarkFlow/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

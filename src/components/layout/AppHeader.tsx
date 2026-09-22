@@ -13,6 +13,8 @@ import {
   Save,
 } from 'lucide-react'
 
+import { UpdateDialog } from '../common/UpdateDialog'
+
 export const AppHeader: React.FC = () => {
   const {
     toggleSidebar,
@@ -40,6 +42,7 @@ export const AppHeader: React.FC = () => {
   } = useSettingsStore()
 
   const [showSettings, setShowSettings] = useState(false)
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false)
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
@@ -255,9 +258,32 @@ export const AppHeader: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Version & Update Check */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80">
+                <div className="text-[11px] text-slate-400">
+                  MarkFlow <span className="text-cyan-400 font-mono">v1.0.0</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSettings(false)
+                    setShowUpdateDialog(true)
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-medium text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+                >
+                  <Sparkles size={12} />
+                  <span>Check Updates</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
+
+        {/* Modal Dialog for App Updates */}
+        <UpdateDialog
+          isOpen={showUpdateDialog}
+          onClose={() => setShowUpdateDialog(false)}
+        />
       </div>
     </header>
   )

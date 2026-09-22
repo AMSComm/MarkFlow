@@ -1,0 +1,41 @@
+<svg width="800" height="240" viewBox="0 0 800 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="240" rx="12" fill="#090d16" stroke="#1e293b" stroke-width="2"/>
+  
+  <!-- Tab Bar with Conflict Badge -->
+  <rect y="0" width="800" height="36" rx="12" fill="#0f172a"/>
+  <rect y="24" width="800" height="12" fill="#0f172a"/>
+  <line x1="0" y1="36" x2="800" y2="36" stroke="#1e293b" stroke-width="1"/>
+
+  <!-- Normal Tab -->
+  <rect x="8" y="6" width="130" height="30" rx="4" fill="#1e293b"/>
+  <text x="25" y="24" font-family="sans-serif" font-size="11" fill="#94a3b8">welcome.md</text>
+
+  <!-- Conflict Tab -->
+  <rect x="144" y="6" width="160" height="30" rx="4" fill="#1e293b" stroke="#f59e0b" stroke-width="1"/>
+  <circle cx="158" cy="21" r="4" fill="#f59e0b"/>
+  <text x="170" y="24" font-family="sans-serif" font-size="11" font-weight="600" fill="#fef08a">architecture.md</text>
+  <circle cx="290" cy="21" r="3" fill="#f59e0b"/>
+
+  <!-- Amber Conflict Banner -->
+  <rect x="0" y="36" width="800" height="48" fill="#451a03" fill-opacity="0.9"/>
+  <line x1="0" y1="84" x2="800" y2="84" stroke="#d97706" stroke-width="1"/>
+
+  <!-- Warning Icon & Text -->
+  <path d="M24 64 L34 46 L44 64 Z" stroke="#f59e0b" stroke-width="2" fill="none"/>
+  <line x1="34" y1="52" x2="34" y2="58" stroke="#f59e0b" stroke-width="2"/>
+  <circle cx="34" cy="61" r="1" fill="#f59e0b"/>
+
+  <text x="54" y="60" font-family="sans-serif" font-size="12" fill="#fde68a"><tspan font-weight="700">Conflict detected:</tspan> architecture.md was modified externally on disk, but you have unsaved changes in MarkFlow.</text>
+
+  <!-- 3 Resolution Buttons -->
+  <rect x="350" y="96" width="130" height="32" rx="6" fill="#78350f" stroke="#b45309"/>
+  <text x="365" y="116" font-family="sans-serif" font-size="11" font-weight="600" fill="#fef3c7">🔄 Reload from Disk</text>
+
+  <rect x="495" y="96" width="140" height="32" rx="6" fill="#1e293b" stroke="#475569"/>
+  <text x="510" y="116" font-family="sans-serif" font-size="11" font-weight="600" fill="#f1f5f9">💾 Keep My Version</text>
+
+  <rect x="650" y="96" width="140" height="32" rx="6" fill="#082f49" stroke="#0284c7"/>
+  <text x="660" y="116" font-family="sans-serif" font-size="11" font-weight="600" fill="#38bdf8">👁️ Compare in Inspector</text>
+
+  <text x="25" y="180" font-family="sans-serif" font-size="12" fill="#94a3b8">MarkFlow protects your work: clean auto-reloading when untouched, zero accidental data loss when editing.</text>
+</svg>

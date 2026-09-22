@@ -1,0 +1,50 @@
+<svg width="800" height="340" viewBox="0 0 800 340" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="340" rx="12" fill="#090d16" stroke="#1e293b" stroke-width="2"/>
+  
+  <!-- Header Bar -->
+  <rect y="0" width="800" height="36" rx="12" fill="#0f172a"/>
+  <rect y="24" width="800" height="12" fill="#0f172a"/>
+  <line x1="0" y1="36" x2="800" y2="36" stroke="#1e293b" stroke-width="1"/>
+  <text x="20" y="23" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" font-weight="700" fill="#f8fafc">Side Link Inspector &amp; Section Slicing</text>
+
+  <!-- Left: Main Tab Area -->
+  <rect x="0" y="36" width="480" height="304" fill="#0b0f19"/>
+  <text x="25" y="70" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Main Document with In-Page &amp; Cross Links</text>
+  <text x="25" y="100" font-family="Inter, sans-serif" font-size="12" fill="#94a3b8">Review the technical specification below:</text>
+  
+  <rect x="25" y="120" width="430" height="40" rx="6" fill="#0f172a" stroke="#1e293b"/>
+  <text x="35" y="145" font-family="Inter, sans-serif" font-size="12" fill="#94a3b8">1. Click internal anchor: </text>
+  <text x="180" y="145" font-family="Inter, sans-serif" font-size="12" fill="#0ea5e9" text-decoration="underline" font-weight="600">#4-security-protocols</text>
+
+  <rect x="25" y="175" width="430" height="40" rx="6" fill="#0f172a" stroke="#1e293b"/>
+  <text x="35" y="200" font-family="Inter, sans-serif" font-size="12" fill="#94a3b8">2. Cross-file link: </text>
+  <text x="150" y="200" font-family="Inter, sans-serif" font-size="12" fill="#38bdf8" text-decoration="underline" font-weight="600">specs.md#database-schema</text>
+
+  <text x="25" y="250" font-family="sans-serif" font-size="11" fill="#64748b">💡 Regular click slices section in Inspector. Ctrl+Click opens tab &amp; scrolls directly.</text>
+
+  <!-- Inspector Divider -->
+  <line x1="480" y1="36" x2="480" y2="340" stroke="#0ea5e9" stroke-width="2"/>
+
+  <!-- Right: Side Inspector Drawer -->
+  <rect x="480" y="36" width="320" height="304" fill="#0f172a"/>
+  
+  <!-- Inspector Top Bar -->
+  <rect x="480" y="36" width="320" height="28" fill="#1e293b"/>
+  <text x="495" y="55" font-family="sans-serif" font-size="11" font-weight="600" fill="#0ea5e9">Inspector: #4-security-protocols</text>
+  <rect x="735" y="41" width="55" height="18" rx="3" fill="#0ea5e9" fill-opacity="0.2"/>
+  <text x="742" y="54" font-family="sans-serif" font-size="9" font-weight="600" fill="#38bdf8">Section</text>
+
+  <!-- Banner -->
+  <rect x="480" y="64" width="320" height="22" fill="#082f49" fill-opacity="0.4"/>
+  <text x="495" y="79" font-family="sans-serif" font-size="10" fill="#7dd3fc">Viewing section only • <tspan fill="#38bdf8" text-decoration="underline">View Full Doc →</tspan></text>
+
+  <!-- Section Sliced Content -->
+  <text x="495" y="115" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#f8fafc">### 4. Security Protocols</text>
+  <text x="495" y="140" font-family="Inter, sans-serif" font-size="11" fill="#cbd5e1">- Zero network exfiltration by default.</text>
+  <text x="495" y="160" font-family="Inter, sans-serif" font-size="11" fill="#cbd5e1">- Local storage sandbox encryption.</text>
+  <text x="495" y="180" font-family="Inter, sans-serif" font-size="11" fill="#cbd5e1">- Memory-safe Rust &amp; Go runtimes.</text>
+  
+  <rect x="495" y="205" width="290" height="50" rx="5" fill="#090d16" stroke="#1e293b"/>
+  <text x="505" y="225" font-family="'JetBrains Mono', monospace" font-size="10" fill="#10b981">verifyChecksum(sha256)</text>
+  <text x="505" y="243" font-family="'JetBrains Mono', monospace" font-size="9" fill="#64748b">// Off-thread worker verification</text>
+</svg>
