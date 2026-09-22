@@ -135,6 +135,22 @@
   padding: 0;
 }
 
+/* Custom code block wrapper & hljs dark theme integration */
+.code-block-wrapper pre {
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.code-block-wrapper pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+  font-family: 'JetBrains Mono', Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+
 .markdown-body table {
   width: 100%;
   border-collapse: collapse;

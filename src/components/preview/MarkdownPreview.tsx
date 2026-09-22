@@ -1,5 +1,7 @@
 import React, { useMemo, useEffect, useRef } from 'react'
 import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-dark.css'
 import { MermaidBlock } from './MermaidBlock'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { slugify, matchesAnchor } from '../../utils/slugify'
@@ -14,6 +16,89 @@ interface MarkdownPreviewProps {
 
 // Regex to detect mermaid code fences: ```mermaid ... ```
 const MERMAID_REGEX = /```mermaid\s*([\s\S]*?)```/g
+
+// Prioritized subset of popular languages for fast auto-detection
+const POPULAR_LANGUAGES = [
+  'javascript',
+  'typescript',
+  'python',
+  'json',
+  'html',
+  'css',
+  'bash',
+  'shell',
+  'sql',
+  'yaml',
+  'markdown',
+  'go',
+  'rust',
+  'c',
+  'cpp',
+  'csharp',
+  'java',
+  'xml',
+  'dockerfile',
+]
+
+/**
+ * Highlights code and wraps it in a styled container with language badge and copy button.
+ * Uses auto-detection when no language tag is provided, with sampling optimization
+ * to ensure zero lag even on large documents.
+ */
+function renderFencedCodeBlock(code: string, rawInfo: string, escapeHtml: (s: string) => string): string {
+  const lang = (rawInfo || '').trim().split(/\s+/)[0].toLowerCase()
+  let highlightedHtml = ''
+  let displayLang = lang
+
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      const res = hljs.highlight(code, { language: lang, ignoreIllegals: true })
+      highlightedHtml = res.value
+      displayLang = lang
+    } catch {
+      highlightedHtml = escapeHtml(code)
+    }
+  } else {
+    // Auto-detect code language
+    // Optimization: sample first 50 lines / 3000 chars to avoid CPU stalls
+    const sample = code.length > 3000 ? code.split('\n').slice(0, 50).join('\n') : code
+    try {
+      const auto = hljs.highlightAuto(sample, POPULAR_LANGUAGES)
+      if (auto.language && auto.relevance >= 2) {
+        displayLang = auto.language
+        const res = hljs.highlight(code, { language: auto.language, ignoreIllegals: true })
+        highlightedHtml = res.value
+      } else {
+        displayLang = lang || 'text'
+        highlightedHtml = escapeHtml(code)
+      }
+    } catch {
+      displayLang = lang || 'text'
+      highlightedHtml = escapeHtml(code)
+    }
+  }
+
+  const encodedCode = encodeURIComponent(code)
+
+  return `<div class="code-block-wrapper group/code my-3 rounded-lg border border-slate-800 bg-[#090d16] overflow-hidden">
+  <div class="flex items-center justify-between px-3 py-1.5 bg-[#0f172a] border-b border-slate-800 text-[11px] font-mono text-slate-400 select-none">
+    <span class="uppercase font-semibold tracking-wider text-cyan-400/90">${displayLang}</span>
+    <button
+      type="button"
+      class="copy-code-btn inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+      data-code="${encodedCode}"
+      title="Copy code to clipboard"
+    >
+      <svg class="copy-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      </svg>
+      <span class="copy-label text-[11px]">Copy</span>
+    </button>
+  </div>
+  <pre class="!m-0 !p-3 !bg-transparent overflow-x-auto text-[13px] leading-relaxed"><code class="hljs language-${displayLang}">${highlightedHtml}</code></pre>
+</div>`
+}
 
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
@@ -32,6 +117,12 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       linkify: true,
       typographer: true,
     })
+
+    // Custom code fence rule: syntax highlight + auto-detect + copy button
+    instance.renderer.rules.fence = (tokens, idx) => {
+      const token = tokens[idx]
+      return renderFencedCodeBlock(token.content, token.info, instance.utils.escapeHtml)
+    }
 
     // Custom heading rule to inject id, data-slug, and data-heading attributes
     instance.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
@@ -141,6 +232,50 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   // - Link #4-aaa of EXTERNAL file:
   //    * Open the external file in main tab and focus into #4-aaa
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 0. Handle Copy Button click on code blocks
+    const copyBtn = (e.target as HTMLElement).closest('.copy-code-btn') as HTMLButtonElement | null
+    if (copyBtn) {
+      e.preventDefault()
+      e.stopPropagation()
+      const rawCode = copyBtn.getAttribute('data-code')
+      if (rawCode) {
+        const textToCopy = decodeURIComponent(rawCode)
+        const copyAsync = async () => {
+          try {
+            await navigator.clipboard.writeText(textToCopy)
+          } catch {
+            const ta = document.createElement('textarea')
+            ta.value = textToCopy
+            ta.style.position = 'fixed'
+            ta.style.opacity = '0'
+            document.body.appendChild(ta)
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+          }
+
+          const label = copyBtn.querySelector('.copy-label')
+          const icon = copyBtn.querySelector('.copy-icon')
+          if (label) label.textContent = 'Copied!'
+          copyBtn.classList.add('text-emerald-400')
+          if (icon) {
+            icon.innerHTML = `<polyline points="20 6 9 17 4 12"></polyline>`
+          }
+
+          setTimeout(() => {
+            if (label) label.textContent = 'Copy'
+            copyBtn.classList.remove('text-emerald-400')
+            if (icon) {
+              icon.innerHTML = `<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>`
+            }
+          }, 2000)
+        }
+
+        copyAsync()
+      }
+      return
+    }
+
     const target = (e.target as HTMLElement).closest('a')
     if (!target) return
 

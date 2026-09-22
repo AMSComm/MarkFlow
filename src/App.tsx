@@ -34,6 +34,7 @@ export function App() {
     closeInspector,
     openInspector,
     openDroppedFiles,
+    checkForExternalFileChanges,
   } = useWorkspaceStore()
 
   const [isDragOver, setIsDragOver] = useState(false)
@@ -41,6 +42,23 @@ export function App() {
   useEffect(() => {
     initWorkspace()
   }, [initWorkspace])
+
+  // Periodic & window focus listener for external file changes
+  useEffect(() => {
+    const handleFocus = () => {
+      checkForExternalFileChanges()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    const timer = setInterval(() => {
+      checkForExternalFileChanges()
+    }, 5000)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(timer)
+    }
+  }, [checkForExternalFileChanges])
 
   // Global Keyboard Shortcuts
   useEffect(() => {

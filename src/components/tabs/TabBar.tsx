@@ -1,6 +1,6 @@
 import React from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
-import { X, FileText, Plus } from 'lucide-react'
+import { X, FileText, Plus, AlertTriangle } from 'lucide-react'
 
 export const TabBar: React.FC = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, createFile } = useWorkspaceStore()
@@ -28,14 +28,25 @@ export const TabBar: React.FC = () => {
                   : 'border-transparent text-slate-400 hover:bg-[#162032] hover:text-slate-200'
               }`}
             >
-              <FileText size={13} className={isActive ? 'text-cyan-400' : 'text-slate-500'} />
+              {tab.hasExternalConflict ? (
+                <AlertTriangle size={13} className="text-amber-400 shrink-0 animate-pulse" />
+              ) : (
+                <FileText size={13} className={isActive ? 'text-cyan-400' : 'text-slate-500'} />
+              )}
               <span className="truncate flex-1">{tab.title}</span>
 
-              {tab.isDirty && (
+              {tab.hasExternalConflict ? (
                 <span
-                  className="h-2 w-2 rounded-full bg-amber-400 group-hover:hidden"
-                  title="Unsaved changes"
+                  className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0"
+                  title="Conflict: Modified externally!"
                 />
+              ) : (
+                tab.isDirty && (
+                  <span
+                    className="h-2 w-2 rounded-full bg-amber-400 group-hover:hidden"
+                    title="Unsaved changes"
+                  />
+                )
               )}
 
               <button

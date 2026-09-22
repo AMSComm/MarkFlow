@@ -210,3 +210,123 @@ describe('WorkspaceStore - Tabs & File Management', () => {
   })
 })
 
+describe('WorkspaceStore - External File Changes & Conflict Resolution', () => {
+  beforeEach(async () => {
+    localStorage.clear()
+    const store = useWorkspaceStore.getState()
+    await store.initWorkspace()
+  })
+
+  it('auto-reloads tab if file is changed on disk and tab has no unsaved changes', async () => {
+    const store = useWorkspaceStore.getState()
+    await store.openFile('/welcome.md')
+
+    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+    expect(activeTab.isDirty).toBe(false)
+
+    // Simulate external edit to /welcome.md on disk
+    const { getFileSystemAdapter } = await import('../adapters')
+    const adapter = getFileSystemAdapter()
+    await adapter.writeFile('/welcome.md', '# Modified externally')
+
+    // Trigger check
+    await store.checkForExternalFileChanges()
+
+    const updatedTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+    expect(updatedTab.content).toBe('# Modified externally')
+    expect(updatedTab.initialContent).toBe('# Modified externally')
+    expect(updatedTab.isDirty).toBe(false)
+    expect(updatedTab.hasExternalConflict).toBeFalsy()
+  })
+
+  it('detects conflict if file changed on disk AND user has unsaved local edits', async () => {
+    const store = useWorkspaceStore.getState()
+    await store.openFile('/welcome.md')
+
+    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+
+    // User edits file in MarkFlow (making it dirty)
+    store.updateContent(activeTab.id, '# My local unsaved edits')
+    expect(useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!.isDirty).toBe(true)
+
+    // Concurrently, external program edits the file on disk
+    const { getFileSystemAdapter } = await import('../adapters')
+    const adapter = getFileSystemAdapter()
+    await adapter.writeFile('/welcome.md', '# External disk change')
+
+    // Trigger check
+    await store.checkForExternalFileChanges()
+
+    const conflictTab = useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!
+    expect(conflictTab.hasExternalConflict).toBe(true)
+    expect(conflictTab.externalDiskContent).toBe('# External disk change')
+    expect(conflictTab.content).toBe('# My local unsaved edits') // preserves user edits!
+  })
+
+  it('resolves conflict: reloadTabFromDisk discards local edits and takes disk version', async () => {
+    const store = useWorkspaceStore.getState()
+    await store.openFile('/welcome.md')
+    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+
+    store.updateContent(activeTab.id, '# Local edits')
+    const { getFileSystemAdapter } = await import('../adapters')
+    await getFileSystemAdapter().writeFile('/welcome.md', '# Fresh disk version')
+
+    await store.checkForExternalFileChanges()
+    expect(useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!.hasExternalConflict).toBe(true)
+
+    // User chooses: Reload from Disk
+    await store.reloadTabFromDisk(activeTab.id)
+
+    const resolvedTab = useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!
+    expect(resolvedTab.content).toBe('# Fresh disk version')
+    expect(resolvedTab.hasExternalConflict).toBe(false)
+    expect(resolvedTab.isDirty).toBe(false)
+  })
+
+  it('resolves conflict: resolveConflictKeepLocal keeps local edits to overwrite disk on save', async () => {
+    const store = useWorkspaceStore.getState()
+    await store.openFile('/welcome.md')
+    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+
+    store.updateContent(activeTab.id, '# My local changes')
+    const { getFileSystemAdapter } = await import('../adapters')
+    await getFileSystemAdapter().writeFile('/welcome.md', '# External disk content')
+
+    await store.checkForExternalFileChanges()
+    expect(useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!.hasExternalConflict).toBe(true)
+
+    // User chooses: Keep My Version
+    store.resolveConflictKeepLocal(activeTab.id)
+
+    const keptTab = useWorkspaceStore.getState().tabs.find((t) => t.id === activeTab.id)!
+    expect(keptTab.hasExternalConflict).toBe(false)
+    expect(keptTab.isDirty).toBe(true)
+    expect(keptTab.content).toBe('# My local changes')
+
+    // Now save and verify disk is overwritten with local version
+    await store.saveActiveFile()
+    const diskContent = await getFileSystemAdapter().readFile('/welcome.md')
+    expect(diskContent).toBe('# My local changes')
+  })
+
+  it('resolves conflict: resolveConflictCompareInInspector opens disk version in inspector', async () => {
+    const store = useWorkspaceStore.getState()
+    await store.openFile('/welcome.md')
+    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.path === '/welcome.md')!
+
+    store.updateContent(activeTab.id, '# Distinct local changes to trigger conflict')
+    const { getFileSystemAdapter } = await import('../adapters')
+    await getFileSystemAdapter().writeFile('/welcome.md', '# External version to compare')
+
+    await store.checkForExternalFileChanges()
+    store.resolveConflictCompareInInspector(activeTab.id)
+
+    const inspector = useWorkspaceStore.getState().inspector
+    expect(inspector.isOpen).toBe(true)
+    expect(inspector.title).toContain('[Disk Version]')
+    expect(inspector.content).toBe('# External version to compare')
+  })
+})
+
+

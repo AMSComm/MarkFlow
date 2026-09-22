@@ -11,6 +11,8 @@ export interface EditorTab {
   content: string
   initialContent: string
   isDirty: boolean
+  hasExternalConflict?: boolean
+  externalDiskContent?: string
 }
 
 export type ViewMode = 'split' | 'editor' | 'preview'
@@ -85,6 +87,10 @@ export interface WorkspaceState {
   closeInspector: () => void
   toggleQuickSwitcher: (open?: boolean) => void
   setStatusMessage: (msg: string) => void
+  checkForExternalFileChanges: () => Promise<void>
+  reloadTabFromDisk: (tabId: string) => Promise<void>
+  resolveConflictKeepLocal: (tabId: string) => void
+  resolveConflictCompareInInspector: (tabId: string) => void
 }
 
 const loadSavedPanelSizes = () => {
@@ -691,6 +697,126 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   setStatusMessage: (msg: string) => {
     set({ statusMessage: msg })
+  },
+
+  checkForExternalFileChanges: async () => {
+    const { tabs } = get()
+    if (tabs.length === 0) return
+
+    const adapter = getFileSystemAdapter()
+
+    for (const tab of tabs) {
+      if (!tab.path) continue
+      try {
+        const diskContent = await adapter.readFile(tab.path)
+
+        // If disk content is different from the initial content when opened/saved
+        if (diskContent !== tab.initialContent) {
+          if (!tab.isDirty) {
+            // User has no unsaved changes in MarkFlow: safe to auto-reload
+            set((state) => ({
+              tabs: state.tabs.map((t) =>
+                t.id === tab.id
+                  ? {
+                      ...t,
+                      content: diskContent,
+                      initialContent: diskContent,
+                      isDirty: false,
+                      hasExternalConflict: false,
+                      externalDiskContent: undefined,
+                    }
+                  : t
+              ),
+              statusMessage: `${tab.title} was updated on disk and reloaded.`,
+            }))
+          } else {
+            // User HAS unsaved changes in MarkFlow AND disk changed: CONFLICT!
+            if (!tab.hasExternalConflict || tab.externalDiskContent !== diskContent) {
+              set((state) => ({
+                tabs: state.tabs.map((t) =>
+                  t.id === tab.id
+                    ? {
+                        ...t,
+                        hasExternalConflict: true,
+                        externalDiskContent: diskContent,
+                      }
+                    : t
+                ),
+                statusMessage: `Warning: Conflict detected in ${tab.title} (modified externally)`,
+              }))
+            }
+          }
+        }
+      } catch {
+        // Ignore read errors for non-existent or inaccessible files
+      }
+    }
+  },
+
+  reloadTabFromDisk: async (tabId: string) => {
+    const { tabs } = get()
+    const target = tabs.find((t) => t.id === tabId)
+    if (!target || !target.path) return
+
+    const adapter = getFileSystemAdapter()
+    try {
+      const diskContent = await adapter.readFile(target.path)
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === tabId
+            ? {
+                ...t,
+                content: diskContent,
+                initialContent: diskContent,
+                isDirty: false,
+                hasExternalConflict: false,
+                externalDiskContent: undefined,
+              }
+            : t
+        ),
+        statusMessage: `Reloaded ${target.title} from disk.`,
+      }))
+    } catch (err) {
+      set({ statusMessage: `Failed to reload ${target.title}: ${(err as Error).message}` })
+    }
+  },
+
+  resolveConflictKeepLocal: (tabId: string) => {
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === tabId
+          ? {
+              ...t,
+              initialContent: t.externalDiskContent || t.initialContent,
+              hasExternalConflict: false,
+              externalDiskContent: undefined,
+              isDirty: true,
+            }
+          : t
+      ),
+      statusMessage: `Keeping local edits. Save (Ctrl+S) will overwrite disk.`,
+    }))
+  },
+
+  resolveConflictCompareInInspector: (tabId: string) => {
+    const { tabs } = get()
+    const target = tabs.find((t) => t.id === tabId)
+    if (!target || !target.externalDiskContent) return
+
+    set({
+      inspector: {
+        isOpen: true,
+        type: 'doc',
+        pathOrUrl: target.path,
+        targetAnchor: null,
+        title: `[Disk Version] ${target.title}`,
+        content: target.externalDiskContent,
+        fullContent: target.externalDiskContent,
+        isSectionOnly: false,
+        loading: false,
+      },
+      statusMessage: `Comparing local vs disk version in Side Inspector.`,
+    })
   },
 }
 })
