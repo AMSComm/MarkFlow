@@ -60,10 +60,12 @@ export const AppHeader: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2 ml-1">
-          {/* MarkFlow Icon Squircle */}
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-cyan-500 to-slate-900 shadow-xs">
-            <span className="font-bold text-[11px] text-white tracking-tight">M</span>
-          </div>
+          {/* MarkFlow Official Icon */}
+          <img
+            src="/icon.png"
+            alt="MarkFlow"
+            className="h-6 w-6 rounded-md object-cover shadow-xs border border-slate-700/50"
+          />
           <span className="font-bold text-sm tracking-tight text-slate-100">
             Mark<span className="text-cyan-400">Flow</span>
           </span>
