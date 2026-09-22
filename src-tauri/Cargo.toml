@@ -2,6 +2,8 @@
 name = "markflow"
 version = "1.0.0"
 description = "MarkFlow - High-Performance Markdown & Mermaid Workspace"
+authors = ["AM Software <contact@amsoftware.com.vn>"]
+license = "MIT"
 edition = "2021"
 
 [build-dependencies]

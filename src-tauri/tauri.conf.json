@@ -29,6 +29,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "AM Software",
+    "copyright": "Copyright © 2026 AM Software",
     "icon": [
       "icons/icon.png"
     ]

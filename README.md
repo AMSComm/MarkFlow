@@ -191,4 +191,4 @@ markflow/
 
 This project is licensed under the **MIT License** - see the [LICENSE](./LICENSE) file for details.
 
-Copyright (c) 2026 **AMSComm** (Doãn Huy &lt;huy.nguyen@amsoftware.com.vn&gt;).
+Copyright (c) 2026 **AM Software** (https://amsoftware.com.vn). All rights reserved.
