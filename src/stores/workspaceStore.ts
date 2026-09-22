@@ -31,6 +31,7 @@ export interface WorkspaceState {
   sidebarWidth: number
   splitRatio: number
   inspectorWidth: number
+  outlineRatio: number
   viewMode: ViewMode
   inspector: InspectorState
   isQuickSwitcherOpen: boolean
@@ -56,8 +57,13 @@ export interface WorkspaceState {
   toggleOutline: () => void
   scrollToLine: (line: number | null) => void
   setSidebarWidth: (width: number) => void
+  changeSidebarWidth: (delta: number) => void
   setSplitRatio: (ratio: number) => void
+  changeSplitRatio: (deltaPercent: number) => void
   setInspectorWidth: (width: number) => void
+  changeInspectorWidth: (delta: number) => void
+  setOutlineRatio: (ratio: number) => void
+  changeOutlineRatio: (deltaPercent: number) => void
   resetPanelSizes: () => void
   setViewMode: (mode: ViewMode) => void
   openInspector: (type: 'doc' | 'web', pathOrUrl: string) => Promise<void>
@@ -73,7 +79,7 @@ const loadSavedPanelSizes = () => {
   } catch {
     // fallback
   }
-  return { sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380 }
+  return { sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380, outlineRatio: 50 }
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
@@ -88,6 +94,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     sidebarWidth: initialSizes.sidebarWidth ?? 224,
     splitRatio: initialSizes.splitRatio ?? 50,
     inspectorWidth: initialSizes.inspectorWidth ?? 380,
+    outlineRatio: initialSizes.outlineRatio ?? 50,
     viewMode: 'split',
     inspector: {
       isOpen: false,
@@ -179,7 +186,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     setSidebarWidth: (width: number) => {
-      const clamped = Math.max(160, Math.min(450, width))
+      const clamped = Math.max(160, Math.min(600, width))
       set({ sidebarWidth: clamped })
       try {
         const current = loadSavedPanelSizes()
@@ -190,8 +197,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       } catch {}
     },
 
+    changeSidebarWidth: (delta: number) => {
+      set((state) => {
+        const next = Math.max(160, Math.min(600, state.sidebarWidth + delta))
+        try {
+          const current = loadSavedPanelSizes()
+          localStorage.setItem(
+            'markflow_panel_sizes_v1',
+            JSON.stringify({ ...current, sidebarWidth: next })
+          )
+        } catch {}
+        return { sidebarWidth: next }
+      })
+    },
+
     setSplitRatio: (ratio: number) => {
-      const clamped = Math.max(20, Math.min(80, ratio))
+      const clamped = Math.max(15, Math.min(85, ratio))
       set({ splitRatio: clamped })
       try {
         const current = loadSavedPanelSizes()
@@ -202,8 +223,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       } catch {}
     },
 
+    changeSplitRatio: (deltaPercent: number) => {
+      set((state) => {
+        const next = Math.max(15, Math.min(85, state.splitRatio + deltaPercent))
+        try {
+          const current = loadSavedPanelSizes()
+          localStorage.setItem(
+            'markflow_panel_sizes_v1',
+            JSON.stringify({ ...current, splitRatio: next })
+          )
+        } catch {}
+        return { splitRatio: next }
+      })
+    },
+
     setInspectorWidth: (width: number) => {
-      const clamped = Math.max(260, Math.min(650, width))
+      const clamped = Math.max(260, Math.min(800, width))
       set({ inspectorWidth: clamped })
       try {
         const current = loadSavedPanelSizes()
@@ -214,8 +249,48 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       } catch {}
     },
 
+    changeInspectorWidth: (delta: number) => {
+      set((state) => {
+        const next = Math.max(260, Math.min(800, state.inspectorWidth + delta))
+        try {
+          const current = loadSavedPanelSizes()
+          localStorage.setItem(
+            'markflow_panel_sizes_v1',
+            JSON.stringify({ ...current, inspectorWidth: next })
+          )
+        } catch {}
+        return { inspectorWidth: next }
+      })
+    },
+
+    setOutlineRatio: (ratio: number) => {
+      const clamped = Math.max(15, Math.min(85, ratio))
+      set({ outlineRatio: clamped })
+      try {
+        const current = loadSavedPanelSizes()
+        localStorage.setItem(
+          'markflow_panel_sizes_v1',
+          JSON.stringify({ ...current, outlineRatio: clamped })
+        )
+      } catch {}
+    },
+
+    changeOutlineRatio: (deltaPercent: number) => {
+      set((state) => {
+        const next = Math.max(15, Math.min(85, state.outlineRatio + deltaPercent))
+        try {
+          const current = loadSavedPanelSizes()
+          localStorage.setItem(
+            'markflow_panel_sizes_v1',
+            JSON.stringify({ ...current, outlineRatio: next })
+          )
+        } catch {}
+        return { outlineRatio: next }
+      })
+    },
+
     resetPanelSizes: () => {
-      set({ sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380 })
+      set({ sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380, outlineRatio: 50 })
       try {
         localStorage.removeItem('markflow_panel_sizes_v1')
       } catch {}

@@ -149,7 +149,13 @@ export class MockFileSystemAdapter implements FileSystemAdapter {
   private files: Record<string, string>
 
   constructor() {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    let saved: string | null = null
+    try {
+      if (typeof localStorage !== 'undefined') {
+        saved = localStorage.getItem(STORAGE_KEY)
+      }
+    } catch {}
+
     if (saved) {
       try {
         this.files = JSON.parse(saved)
@@ -163,7 +169,11 @@ export class MockFileSystemAdapter implements FileSystemAdapter {
   }
 
   private persist() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.files))
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.files))
+      }
+    } catch {}
   }
 
   async getWorkspaceRoot(): Promise<string> {

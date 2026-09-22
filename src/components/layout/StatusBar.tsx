@@ -16,7 +16,7 @@ export const StatusBar: React.FC = () => {
     const words = text.trim() ? text.trim().split(/\s+/).length : 0
     const chars = text.length
     return { lines, words, chars }
-  }, [activeTab?.content])
+  }, [activeTab])
 
   const environmentLabel = useMemo(() => {
     if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {

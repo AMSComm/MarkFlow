@@ -7,7 +7,8 @@ import { ResizeHandle } from '../common/ResizeHandle'
 import { FileEdit } from 'lucide-react'
 
 export const SplitWorkspace: React.FC = () => {
-  const { tabs, activeTabId, viewMode, splitRatio, setSplitRatio } = useWorkspaceStore()
+  const { tabs, activeTabId, viewMode, splitRatio, changeSplitRatio, setSplitRatio } =
+    useWorkspaceStore()
   const { syncScroll } = useSettingsStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -27,7 +28,7 @@ export const SplitWorkspace: React.FC = () => {
     const totalWidth = containerRef.current.clientWidth
     if (totalWidth <= 0) return
     const deltaPercent = (deltaX / totalWidth) * 100
-    setSplitRatio(splitRatio + deltaPercent)
+    changeSplitRatio(deltaPercent)
   }
 
   if (!activeTab) {

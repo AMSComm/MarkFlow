@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import { AppHeader } from './components/layout/AppHeader'
 import { TabBar } from './components/tabs/TabBar'
@@ -12,11 +12,17 @@ import { TableOfContents } from './components/outline/TableOfContents'
 import { UploadCloud } from 'lucide-react'
 
 export function App() {
+  const asideRef = useRef<HTMLElement>(null)
   const {
     initWorkspace,
     isSidebarOpen,
     sidebarWidth,
+    changeSidebarWidth,
     setSidebarWidth,
+    isOutlineOpen,
+    outlineRatio,
+    changeOutlineRatio,
+    setOutlineRatio,
     toggleSidebar,
     toggleQuickSwitcher,
     saveActiveFile,
@@ -114,6 +120,13 @@ export function App() {
     }
   }
 
+  const handleOutlineResize = (deltaY: number) => {
+    const totalHeight = asideRef.current?.clientHeight || window.innerHeight
+    if (totalHeight <= 0) return
+    const deltaPercent = (deltaY / totalHeight) * 100
+    changeOutlineRatio(-deltaPercent)
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -139,16 +152,42 @@ export function App() {
         {isSidebarOpen && (
           <div className="flex h-full shrink-0">
             <aside
+              ref={asideRef}
               style={{ width: `${sidebarWidth}px` }}
               className="flex h-full flex-col overflow-hidden bg-[#0f172a]"
             >
-              <div className="flex-1 overflow-hidden">
-                <FileTree />
-              </div>
-              <TableOfContents />
+              {isOutlineOpen ? (
+                <>
+                  <div
+                    style={{ height: `${100 - outlineRatio}%` }}
+                    className="flex min-h-[100px] flex-col overflow-hidden"
+                  >
+                    <FileTree />
+                  </div>
+                  <ResizeHandle
+                    direction="vertical"
+                    onResize={handleOutlineResize}
+                    onDoubleClick={() => setOutlineRatio(50)}
+                    title="Drag to resize Outline / Explorer (Double-click for 50/50 split)"
+                  />
+                  <div
+                    style={{ height: `${outlineRatio}%` }}
+                    className="flex min-h-[80px] flex-col overflow-hidden"
+                  >
+                    <TableOfContents />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 overflow-hidden">
+                    <FileTree />
+                  </div>
+                  <TableOfContents />
+                </>
+              )}
             </aside>
             <ResizeHandle
-              onResize={(deltaX) => setSidebarWidth(sidebarWidth + deltaX)}
+              onResize={(deltaX) => changeSidebarWidth(deltaX)}
               onDoubleClick={() => setSidebarWidth(224)}
               title="Drag to resize Explorer (Double-click for default 224px)"
             />

@@ -10,16 +10,43 @@ export const TableOfContents: React.FC = () => {
   const headings = useMemo(() => {
     if (!activeTab) return []
     return extractTableOfContents(activeTab.content)
-  }, [activeTab?.content])
+  }, [activeTab])
 
-  if (!activeTab) return null
+  if (!activeTab) {
+    return (
+      <div className="flex h-full flex-col border-t border-[#1e293b] bg-[#0b0f19] select-none overflow-hidden">
+        <div
+          onClick={toggleOutline}
+          className="flex h-8 shrink-0 cursor-pointer items-center justify-between px-3 text-slate-400 hover:bg-[#162032] hover:text-slate-200 transition-colors"
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
+            {isOutlineOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <ListCollapse size={13} className="text-cyan-400" />
+            <span>Outline</span>
+          </div>
+          <span className="rounded bg-slate-800/80 px-1.5 py-0.2 text-[10px] font-mono text-slate-500">
+            0
+          </span>
+        </div>
+        {isOutlineOpen && (
+          <div className="flex flex-1 items-center justify-center p-3 text-center text-[11px] text-slate-500">
+            No document open
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col border-t border-[#1e293b] bg-[#0b0f19] select-none">
+    <div
+      className={`flex flex-col border-t border-[#1e293b] bg-[#0b0f19] select-none overflow-hidden ${
+        isOutlineOpen ? 'h-full' : 'shrink-0'
+      }`}
+    >
       {/* Outline Header */}
       <div
         onClick={toggleOutline}
-        className="flex h-8 cursor-pointer items-center justify-between px-3 text-slate-400 hover:bg-[#162032] hover:text-slate-200 transition-colors"
+        className="flex h-8 shrink-0 cursor-pointer items-center justify-between px-3 text-slate-400 hover:bg-[#162032] hover:text-slate-200 transition-colors"
       >
         <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase">
           {isOutlineOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -33,10 +60,10 @@ export const TableOfContents: React.FC = () => {
 
       {/* Headings List */}
       {isOutlineOpen && (
-        <div className="max-h-56 overflow-y-auto p-1.5 text-xs">
+        <div className="flex-1 overflow-y-auto p-1.5 text-xs">
           {headings.length === 0 ? (
             <div className="p-3 text-center text-[11px] text-slate-500">
-              No headings in active document.
+              No headings in active document
             </div>
           ) : (
             headings.map((item) => {

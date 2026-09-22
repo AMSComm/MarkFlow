@@ -123,15 +123,20 @@ export const FileTree: React.FC = () => {
   return (
     <div className="flex h-full flex-col select-none bg-[#0f172a] text-slate-300">
       {/* Hidden file inputs for local file/folder picking */}
+      <label className="sr-only" htmlFor="markflow-file-input">Upload markdown files</label>
       <input
+        id="markflow-file-input"
         ref={fileInputRef}
         type="file"
         multiple
         accept=".md,.markdown,.txt"
         onChange={handleFileInputChange}
         className="hidden"
+        aria-label="Upload markdown files"
       />
+      <label className="sr-only" htmlFor="markflow-folder-input">Upload markdown folder</label>
       <input
+        id="markflow-folder-input"
         ref={folderInputRef}
         type="file"
         // @ts-expect-error - webkitdirectory
@@ -139,6 +144,7 @@ export const FileTree: React.FC = () => {
         directory=""
         onChange={handleFileInputChange}
         className="hidden"
+        aria-label="Upload markdown folder"
       />
 
       {/* Explorer Header */}

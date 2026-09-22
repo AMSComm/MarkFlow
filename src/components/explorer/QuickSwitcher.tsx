@@ -35,15 +35,9 @@ export const QuickSwitcher: React.FC = () => {
 
   useEffect(() => {
     if (isQuickSwitcherOpen) {
-      setQuery('')
-      setSelectedIndex(0)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [isQuickSwitcherOpen])
-
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [query])
 
   if (!isQuickSwitcherOpen) return null
 
@@ -82,7 +76,10 @@ export const QuickSwitcher: React.FC = () => {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setSelectedIndex(0)
+            }}
             placeholder="Type a file name to jump to... (Esc to cancel)"
             className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-hidden"
           />

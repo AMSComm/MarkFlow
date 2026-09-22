@@ -10,6 +10,7 @@ export const SideInspector: React.FC = () => {
     closeInspector,
     openFile,
     inspectorWidth,
+    changeInspectorWidth,
     setInspectorWidth,
   } = useWorkspaceStore()
 
@@ -30,7 +31,7 @@ export const SideInspector: React.FC = () => {
 
   const handleResize = (deltaX: number) => {
     // Dragging left (negative deltaX) expands the right-anchored panel
-    setInspectorWidth(inspectorWidth - deltaX)
+    changeInspectorWidth(-deltaX)
   }
 
   return (
