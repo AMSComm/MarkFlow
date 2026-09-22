@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getFileSystemAdapter } from '../adapters'
+import { getFileSystemAdapter, setFileSystemAdapter, NativeBrowserFileSystemAdapter } from '../adapters'
 import type { FileEntry } from '../adapters/adapter.interface'
 
 export interface EditorTab {
@@ -35,10 +35,14 @@ export interface WorkspaceState {
   inspector: InspectorState
   isQuickSwitcherOpen: boolean
   statusMessage: string
+  isOutlineOpen: boolean
+  targetScrollLine: number | null
 
   // Actions
   initWorkspace: () => Promise<void>
   refreshFileTree: () => Promise<void>
+  openLocalDirectory: () => Promise<void>
+  openDroppedFiles: (files: File[]) => Promise<void>
   openFile: (path: string) => Promise<void>
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
@@ -49,6 +53,8 @@ export interface WorkspaceState {
   deleteFile: (path: string) => Promise<void>
   toggleFolder: (path: string) => void
   toggleSidebar: () => void
+  toggleOutline: () => void
+  scrollToLine: (line: number | null) => void
   setSidebarWidth: (width: number) => void
   setSplitRatio: (ratio: number) => void
   setInspectorWidth: (width: number) => void
@@ -93,6 +99,84 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
     isQuickSwitcherOpen: false,
     statusMessage: 'Ready',
+    isOutlineOpen: true,
+    targetScrollLine: null,
+
+    toggleOutline: () => set((state) => ({ isOutlineOpen: !state.isOutlineOpen })),
+
+    scrollToLine: (line: number | null) => set({ targetScrollLine: line }),
+
+    openLocalDirectory: async () => {
+      // Check for browser File System Access API
+      if ('showDirectoryPicker' in window) {
+        try {
+          // @ts-expect-error - File System Access API
+          const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+          const nativeAdapter = new NativeBrowserFileSystemAdapter(handle)
+          setFileSystemAdapter(nativeAdapter)
+
+          const files = await nativeAdapter.listDirectory('/')
+          set({ fileTree: files, tabs: [], activeTabId: null })
+
+          const firstMd = files.find(
+            (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+          )
+          if (firstMd) {
+            await get().openFile(firstMd.path)
+          }
+          set({ statusMessage: `Opened folder: ${handle.name}` })
+        } catch (err) {
+          if ((err as Error).name !== 'AbortError') {
+            console.error('Failed to open local directory:', err)
+            alert('Failed to open directory: ' + (err as Error).message)
+          }
+        }
+      } else {
+        alert(
+          'Your browser does not support showDirectoryPicker. You can drag and drop any markdown files or folders directly into MarkFlow!'
+        )
+      }
+    },
+
+    openDroppedFiles: async (files: File[]) => {
+      const adapter = getFileSystemAdapter()
+      const newTabs: EditorTab[] = []
+
+      for (const file of files) {
+        if (
+          !file.name.endsWith('.md') &&
+          !file.name.endsWith('.markdown') &&
+          !file.name.endsWith('.txt')
+        ) {
+          continue
+        }
+        const text = await file.text()
+        const virtualPath = `/${file.name}`
+        try {
+          await adapter.createFile(virtualPath, text)
+        } catch {
+          await adapter.writeFile(virtualPath, text)
+        }
+        newTabs.push({
+          id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          path: virtualPath,
+          title: file.name,
+          content: text,
+          initialContent: text,
+          isDirty: false,
+        })
+      }
+
+      if (newTabs.length > 0) {
+        await get().refreshFileTree()
+        const currentTabs = get().tabs
+        set({
+          tabs: [...currentTabs, ...newTabs],
+          activeTabId: newTabs[0].id,
+          statusMessage: `Imported ${newTabs.length} file(s)`,
+        })
+      }
+    },
 
     setSidebarWidth: (width: number) => {
       const clamped = Math.max(160, Math.min(450, width))

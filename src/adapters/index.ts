@@ -7,6 +7,7 @@ export * from './adapter.interface'
 export * from './tauri.adapter'
 export * from './http.adapter'
 export * from './mock.adapter'
+export * from './nativeFs.adapter'
 
 let activeAdapter: FileSystemAdapter | null = null
 

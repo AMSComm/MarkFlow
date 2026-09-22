@@ -126,5 +126,23 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
     }
   }, [content])
 
+  // Scroll to targeted line when clicked from Table of Contents
+  const { targetScrollLine, scrollToLine } = useWorkspaceStore()
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || targetScrollLine === null) return
+
+    try {
+      const line = view.state.doc.line(Math.min(targetScrollLine, view.state.doc.lines))
+      view.dispatch({
+        selection: { anchor: line.from },
+        scrollIntoView: true,
+      })
+      scrollToLine(null)
+    } catch (e) {
+      console.warn('Could not scroll to line:', e)
+    }
+  }, [targetScrollLine, scrollToLine])
+
   return <div ref={containerRef} className="h-full w-full overflow-hidden bg-[#090d16]" />
 }
