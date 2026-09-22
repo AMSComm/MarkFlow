@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getFileSystemAdapter, setFileSystemAdapter, NativeBrowserFileSystemAdapter } from '../adapters'
 import type { FileEntry } from '../adapters/adapter.interface'
 import { findAnchorLine } from '../utils/tocExtractor'
+import { extractSection } from '../utils/sectionExtractor'
 
 export interface EditorTab {
   id: string
@@ -21,6 +22,9 @@ export interface InspectorState {
   targetAnchor?: string | null
   title: string
   content: string
+  fullContent?: string
+  isSectionOnly?: boolean
+  sectionTitle?: string
   loading: boolean
 }
 
@@ -71,7 +75,13 @@ export interface WorkspaceState {
   changeOutlineRatio: (deltaPercent: number) => void
   resetPanelSizes: () => void
   setViewMode: (mode: ViewMode) => void
-  openInspector: (type: 'doc' | 'web', pathOrUrl: string, targetAnchor?: string) => Promise<void>
+  openInspector: (
+    type: 'doc' | 'web',
+    pathOrUrl: string,
+    targetAnchor?: string,
+    sectionOnly?: boolean
+  ) => Promise<void>
+  toggleInspectorSectionMode: () => void
   closeInspector: () => void
   toggleQuickSwitcher: (open?: boolean) => void
   setStatusMessage: (msg: string) => void
@@ -523,7 +533,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     set({ viewMode: mode })
   },
 
-  openInspector: async (type: 'doc' | 'web', pathOrUrl: string, targetAnchor?: string) => {
+  openInspector: async (
+    type: 'doc' | 'web',
+    pathOrUrl: string,
+    targetAnchor?: string,
+    sectionOnly = false
+  ) => {
     let cleanPath = pathOrUrl
     let anchor = targetAnchor || null
 
@@ -554,6 +569,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         targetAnchor: anchor,
         title: displayTitle,
         content: '',
+        fullContent: '',
+        isSectionOnly: false,
         loading: true,
       },
     })
@@ -563,11 +580,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (type === 'doc') {
         const { tabs, activeTabId } = get()
         const activeTab = tabs.find((t) => t.id === activeTabId)
-        let content = ''
+        let rawContent = ''
         if (activeTab && activeTab.path === cleanPath) {
-          content = activeTab.content
+          rawContent = activeTab.content
         } else {
-          content = await adapter.readFile(cleanPath)
+          rawContent = await adapter.readFile(cleanPath)
+        }
+
+        let finalContent = rawContent
+        let isSection = false
+        let secTitle: string | undefined = undefined
+
+        // If anchor is present and it's requested as sectionOnly or it is the same file
+        if (anchor && (sectionOnly || (activeTab && activeTab.path === cleanPath))) {
+          const section = extractSection(rawContent, anchor)
+          if (section) {
+            finalContent = section.content
+            isSection = true
+            secTitle = section.title
+          }
         }
 
         set({
@@ -576,8 +607,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
             type: 'doc',
             pathOrUrl: cleanPath,
             targetAnchor: anchor,
-            title: displayTitle,
-            content,
+            title: isSection && secTitle ? `${fileName} > #${anchor} (${secTitle})` : displayTitle,
+            content: finalContent,
+            fullContent: rawContent,
+            isSectionOnly: isSection,
+            sectionTitle: secTitle,
             loading: false,
           },
         })
@@ -591,6 +625,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
             targetAnchor: null,
             title: article.title || cleanPath,
             content: article.content,
+            fullContent: article.content,
+            isSectionOnly: false,
             loading: false,
           },
         })
@@ -604,9 +640,40 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           targetAnchor: anchor,
           title: displayTitle,
           content: `Failed to load preview for ${cleanPath}: ${(err as Error).message}`,
+          fullContent: '',
+          isSectionOnly: false,
           loading: false,
         },
       })
+    }
+  },
+
+  toggleInspectorSectionMode: () => {
+    const { inspector } = get()
+    if (!inspector.isOpen || inspector.type !== 'doc' || !inspector.fullContent) return
+
+    if (inspector.isSectionOnly) {
+      // Switch from section-only view to full document view
+      set({
+        inspector: {
+          ...inspector,
+          content: inspector.fullContent,
+          isSectionOnly: false,
+        },
+      })
+    } else if (inspector.targetAnchor) {
+      // Switch to section-only view
+      const sec = extractSection(inspector.fullContent, inspector.targetAnchor)
+      if (sec) {
+        set({
+          inspector: {
+            ...inspector,
+            content: sec.content,
+            isSectionOnly: true,
+            sectionTitle: sec.title,
+          },
+        })
+      }
     }
   },
 

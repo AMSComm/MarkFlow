@@ -20,7 +20,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   containerRef,
   targetAnchor,
   onScroll,
-  isInspector = false,
+  isInspector: _isInspector = false,
 }) => {
   const { openInspector, openFile, scrollToAnchor } = useWorkspaceStore()
   const internalContainerRef = useRef<HTMLDivElement>(null)
@@ -135,8 +135,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   }, [targetAnchor, segments, activeContainerRef])
 
   // Intercept click on links:
-  // - Regular click: preview in Side Inspector (current file section or other file section)
-  // - Ctrl/Cmd + click: open in main tab and focus anchor
+  // - Link #4-aaa of SAME file:
+  //    * Regular click: preview ONLY the content of section #4-aaa in Side Inspector
+  //    * Ctrl/Cmd + click: focus into #4-aaa in active editor/tab
+  // - Link #4-aaa of EXTERNAL file:
+  //    * Open the external file in main tab and focus into #4-aaa
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest('a')
     if (!target) return
@@ -171,44 +174,40 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     const { tabs, activeTabId } = useWorkspaceStore.getState()
     const activeTab = tabs.find((t) => t.id === activeTabId)
 
-    // Normalize relative path
+    // Normalize file path
     let normalizedPath = filePath
     if (normalizedPath) {
       if (normalizedPath.startsWith('./')) normalizedPath = normalizedPath.slice(1)
       if (!normalizedPath.startsWith('/')) normalizedPath = `/${normalizedPath}`
-    } else if (activeTab) {
-      // Empty path with anchor (e.g. href="#4-abc") refers to the active tab's file
-      normalizedPath = activeTab.path
     }
 
-    if (isModifier) {
-      // Ctrl/Cmd + Click: Open in main tab and focus anchor
-      if (normalizedPath) {
-        openFile(normalizedPath, anchor || undefined)
-      } else if (anchor) {
-        scrollToAnchor(anchor)
-      }
-    } else {
-      // Regular Click: Preview in Side Inspector
-      if (isInspector && !filePath && anchor) {
-        // If already inside inspector and clicking an anchor within the same file, scroll inspector
-        const cleanAnchor = anchor.replace(/^#/, '').toLowerCase().trim()
-        const container = activeContainerRef.current
-        if (container) {
-          const el = container.querySelector(`#${CSS.escape(cleanAnchor)}`) as HTMLElement | null
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            el.classList.add('anchor-highlight')
-            setTimeout(() => el.classList.remove('anchor-highlight'), 2500)
-            return
-          }
+    const isSameFile = !normalizedPath || (activeTab && normalizedPath === activeTab.path)
+
+    if (isSameFile) {
+      // LINK OF THE SAME FILE
+      if (isModifier) {
+        // Ctrl/Cmd + Click: focus into section #4-aaa in active tab
+        if (anchor) {
+          scrollToAnchor(anchor)
+        }
+      } else {
+        // Regular Click: preview ONLY the content of section #4-aaa in Side Inspector
+        if (anchor && activeTab) {
+          openInspector('doc', activeTab.path, anchor, true)
         }
       }
-
-      if (normalizedPath) {
-        openInspector('doc', normalizedPath, anchor || undefined)
-      } else if (anchor && activeTab) {
-        openInspector('doc', activeTab.path, anchor)
+    } else {
+      // LINK OF AN EXTERNAL FILE
+      // If link contains an anchor (e.g. other.md#4-aaa): open external file and focus on #4-aaa
+      if (anchor) {
+        openFile(normalizedPath, anchor)
+      } else {
+        // External file without anchor
+        if (isModifier) {
+          openFile(normalizedPath)
+        } else {
+          openInspector('doc', normalizedPath)
+        }
       }
     }
   }
