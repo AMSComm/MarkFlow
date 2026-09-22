@@ -1,0 +1,19 @@
+services:
+  markflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: markflow
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount your local Markdown notes folder here
+      - ./workspace:/workspace
+    environment:
+      - PORT=8080
+      - WORKSPACE_DIR=/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 64M
