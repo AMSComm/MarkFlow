@@ -2,12 +2,13 @@
 
 help:
 	@echo "MarkFlow Developer Commands:"
-	@echo "  make dev          - Run frontend development server (Vite)"
-	@echo "  make build        - Build production frontend bundle"
-	@echo "  make server       - Build and run Go backend server"
-	@echo "  make docker-build - Build compact (< 25MB) Docker image"
-	@echo "  make docker-run   - Run Docker container on port 8080"
-	@echo "  make desktop      - Run native Tauri v2 desktop app"
+	@echo "  make dev           - Run frontend development server (Vite)"
+	@echo "  make build         - Build production frontend bundle"
+	@echo "  make server        - Build and run Go backend server"
+	@echo "  make docker-build  - Build compact (< 25MB) Docker image"
+	@echo "  make docker-run    - Run Docker container on port 8080"
+	@echo "  make docker-update - Rebuild & update running Docker container"
+	@echo "  make desktop       - Run native Tauri v2 desktop app"
 
 dev:
 	pnpm dev
@@ -23,6 +24,9 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 8080:8080 -v $$(pwd)/workspace:/workspace markflow:latest
+
+docker-update:
+	docker compose up -d --build
 
 desktop:
 	pnpm tauri dev
