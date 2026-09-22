@@ -91,6 +91,13 @@ export function App() {
             openDroppedFilePaths([event.payload])
           }
         })
+
+        // Drain any files that arrived before the listeners were registered
+        const { invoke } = await import('@tauri-apps/api/core')
+        const pending = await invoke<string[]>('get_opened_files')
+        if (pending && pending.length > 0) {
+          openDroppedFilePaths(pending)
+        }
       } catch (err) {
         console.warn('Tauri file association listener not available:', err)
       }

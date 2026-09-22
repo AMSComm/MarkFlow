@@ -310,7 +310,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
 
       if (newTabs.length > 0) {
-        const currentTabs = get().tabs
+        let currentTabs = get().tabs
+        // If the only open tab is the initial untouched welcome.md, replace it
+        if (
+          currentTabs.length === 1 &&
+          currentTabs[0].path === '/welcome.md' &&
+          !currentTabs[0].isDirty
+        ) {
+          currentTabs = []
+        }
         set({
           tabs: [...currentTabs, ...newTabs],
           activeTabId: newTabs[0].id,
