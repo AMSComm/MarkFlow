@@ -70,6 +70,47 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
             scroller.scrollTop / Math.max(1, scroller.scrollHeight - scroller.clientHeight)
           onScroll(scrollFraction)
         },
+        click: (event: MouseEvent, view: EditorView) => {
+          if (event.ctrlKey || event.metaKey) {
+            const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+            if (pos !== null) {
+              const line = view.state.doc.lineAt(pos)
+              const lineText = line.text
+              const col = pos - line.from
+              const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
+              let match: RegExpExecArray | null
+              while ((match = linkRegex.exec(lineText)) !== null) {
+                const start = match.index
+                const end = start + match[0].length
+                if (col >= start && col <= end) {
+                  const href = match[2].trim()
+                  event.preventDefault()
+                  if (href.startsWith('http://') || href.startsWith('https://')) {
+                    window.open(href, '_blank')
+                  } else {
+                    const hashIdx = href.indexOf('#')
+                    let path = href
+                    let anchor: string | undefined = undefined
+                    if (hashIdx !== -1) {
+                      anchor = href.slice(hashIdx + 1)
+                      path = href.slice(0, hashIdx)
+                    }
+                    const activeTab = useWorkspaceStore.getState().tabs.find((t) => t.id === tabId)
+                    const targetPath = path
+                      ? (path.startsWith('/') ? path : `/${path.replace(/^\.\//, '')}`)
+                      : (activeTab?.path || '')
+                    if (targetPath) {
+                      useWorkspaceStore.getState().openFile(targetPath, anchor)
+                    } else if (anchor) {
+                      useWorkspaceStore.getState().scrollToAnchor(anchor)
+                    }
+                  }
+                  return true
+                }
+              }
+            }
+          }
+        },
       }),
 
       // Change update listener

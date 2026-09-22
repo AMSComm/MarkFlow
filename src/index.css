@@ -168,3 +168,22 @@
 .markdown-body li {
   margin-bottom: 0.25rem;
 }
+
+/* Anchor target highlight glow effect */
+.anchor-highlight {
+  animation: anchorGlow 2.5s ease-out;
+  border-left: 3px solid #0ea5e9 !important;
+  padding-left: 8px !important;
+  border-radius: 2px;
+  scroll-margin-top: 16px;
+}
+
+@keyframes anchorGlow {
+  0% {
+    background-color: rgba(14, 165, 233, 0.35);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+

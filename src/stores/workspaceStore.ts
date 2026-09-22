@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { getFileSystemAdapter, setFileSystemAdapter, NativeBrowserFileSystemAdapter } from '../adapters'
 import type { FileEntry } from '../adapters/adapter.interface'
+import { findAnchorLine } from '../utils/tocExtractor'
 
 export interface EditorTab {
   id: string
@@ -17,6 +18,7 @@ export interface InspectorState {
   isOpen: boolean
   type: 'doc' | 'web' | null
   pathOrUrl: string | null
+  targetAnchor?: string | null
   title: string
   content: string
   loading: boolean
@@ -38,13 +40,14 @@ export interface WorkspaceState {
   statusMessage: string
   isOutlineOpen: boolean
   targetScrollLine: number | null
+  targetAnchor: string | null
 
   // Actions
   initWorkspace: () => Promise<void>
   refreshFileTree: () => Promise<void>
   openLocalDirectory: () => Promise<void>
   openDroppedFiles: (files: File[]) => Promise<void>
-  openFile: (path: string) => Promise<void>
+  openFile: (path: string, targetAnchor?: string) => Promise<void>
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
   updateContent: (tabId: string, content: string) => void
@@ -56,6 +59,8 @@ export interface WorkspaceState {
   toggleSidebar: () => void
   toggleOutline: () => void
   scrollToLine: (line: number | null) => void
+  scrollToAnchor: (anchor: string) => void
+  setTargetAnchor: (anchor: string | null) => void
   setSidebarWidth: (width: number) => void
   changeSidebarWidth: (delta: number) => void
   setSplitRatio: (ratio: number) => void
@@ -66,7 +71,7 @@ export interface WorkspaceState {
   changeOutlineRatio: (deltaPercent: number) => void
   resetPanelSizes: () => void
   setViewMode: (mode: ViewMode) => void
-  openInspector: (type: 'doc' | 'web', pathOrUrl: string) => Promise<void>
+  openInspector: (type: 'doc' | 'web', pathOrUrl: string, targetAnchor?: string) => Promise<void>
   closeInspector: () => void
   toggleQuickSwitcher: (open?: boolean) => void
   setStatusMessage: (msg: string) => void
@@ -108,10 +113,25 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     statusMessage: 'Ready',
     isOutlineOpen: true,
     targetScrollLine: null,
+    targetAnchor: null,
 
     toggleOutline: () => set((state) => ({ isOutlineOpen: !state.isOutlineOpen })),
 
     scrollToLine: (line: number | null) => set({ targetScrollLine: line }),
+
+    setTargetAnchor: (anchor: string | null) => set({ targetAnchor: anchor }),
+
+    scrollToAnchor: (anchor: string) => {
+      const { tabs, activeTabId } = get()
+      const activeTab = tabs.find((t) => t.id === activeTabId)
+      if (!activeTab) return
+      const line = findAnchorLine(activeTab.content, anchor)
+      if (line !== null) {
+        set({ targetScrollLine: line, targetAnchor: anchor })
+      } else {
+        set({ targetAnchor: anchor })
+      }
+    },
 
     openLocalDirectory: async () => {
       // Check for browser File System Access API
@@ -329,22 +349,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   },
 
-  openFile: async (path: string) => {
+  openFile: async (path: string, targetAnchor?: string) => {
+    let cleanPath = path
+    let anchor = targetAnchor || null
+    if (cleanPath.includes('#')) {
+      const hashIndex = cleanPath.indexOf('#')
+      anchor = cleanPath.slice(hashIndex + 1)
+      cleanPath = cleanPath.slice(0, hashIndex)
+    }
+
     const { tabs } = get()
-    const existing = tabs.find((t) => t.path === path)
+    const existing = tabs.find((t) => t.path === cleanPath)
     if (existing) {
       set({ activeTabId: existing.id })
+      if (anchor) {
+        const line = findAnchorLine(existing.content, anchor)
+        if (line !== null) {
+          get().scrollToLine(line)
+        }
+        set({ targetAnchor: anchor })
+      }
       return
     }
 
     const adapter = getFileSystemAdapter()
     try {
-      const content = await adapter.readFile(path)
-      const parts = path.split('/')
+      const content = await adapter.readFile(cleanPath)
+      const parts = cleanPath.split('/')
       const title = parts[parts.length - 1] || 'untitled.md'
       const newTab: EditorTab = {
         id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        path,
+        path: cleanPath,
         title,
         content,
         initialContent: content,
@@ -353,11 +388,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({
         tabs: [...tabs, newTab],
         activeTabId: newTab.id,
-        statusMessage: `Opened ${title}`,
+        statusMessage: anchor ? `Opened ${title} at #${anchor}` : `Opened ${title}`,
       })
+      if (anchor) {
+        const line = findAnchorLine(content, anchor)
+        if (line !== null) {
+          get().scrollToLine(line)
+        }
+        set({ targetAnchor: anchor })
+      }
     } catch (err) {
-      console.error(`Failed to open file: ${path}`, err)
-      set({ statusMessage: `Error opening ${path}` })
+      console.error(`Failed to open file: ${cleanPath}`, err)
+      set({ statusMessage: `Error opening ${cleanPath}` })
     }
   },
 
@@ -481,13 +523,36 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     set({ viewMode: mode })
   },
 
-  openInspector: async (type: 'doc' | 'web', pathOrUrl: string) => {
+  openInspector: async (type: 'doc' | 'web', pathOrUrl: string, targetAnchor?: string) => {
+    let cleanPath = pathOrUrl
+    let anchor = targetAnchor || null
+
+    if (type === 'doc') {
+      if (cleanPath.includes('#')) {
+        const hashIdx = cleanPath.indexOf('#')
+        anchor = cleanPath.slice(hashIdx + 1)
+        cleanPath = cleanPath.slice(0, hashIdx)
+      }
+
+      // If empty path (e.g. href="#4-abc"), target the active document
+      const { tabs, activeTabId } = get()
+      const activeTab = tabs.find((t) => t.id === activeTabId)
+      if (!cleanPath && activeTab) {
+        cleanPath = activeTab.path
+      }
+    }
+
+    const parts = cleanPath.split('/')
+    const fileName = parts[parts.length - 1] || cleanPath
+    const displayTitle = anchor ? `${fileName} > #${anchor}` : fileName
+
     set({
       inspector: {
         isOpen: true,
         type,
-        pathOrUrl,
-        title: pathOrUrl,
+        pathOrUrl: cleanPath,
+        targetAnchor: anchor,
+        title: displayTitle,
         content: '',
         loading: true,
       },
@@ -496,26 +561,35 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const adapter = getFileSystemAdapter()
     try {
       if (type === 'doc') {
-        const content = await adapter.readFile(pathOrUrl)
-        const parts = pathOrUrl.split('/')
+        const { tabs, activeTabId } = get()
+        const activeTab = tabs.find((t) => t.id === activeTabId)
+        let content = ''
+        if (activeTab && activeTab.path === cleanPath) {
+          content = activeTab.content
+        } else {
+          content = await adapter.readFile(cleanPath)
+        }
+
         set({
           inspector: {
             isOpen: true,
             type: 'doc',
-            pathOrUrl,
-            title: parts[parts.length - 1] || pathOrUrl,
+            pathOrUrl: cleanPath,
+            targetAnchor: anchor,
+            title: displayTitle,
             content,
             loading: false,
           },
         })
       } else {
-        const article = await adapter.fetchExternalUrl(pathOrUrl)
+        const article = await adapter.fetchExternalUrl(cleanPath)
         set({
           inspector: {
             isOpen: true,
             type: 'web',
-            pathOrUrl,
-            title: article.title || pathOrUrl,
+            pathOrUrl: cleanPath,
+            targetAnchor: null,
+            title: article.title || cleanPath,
             content: article.content,
             loading: false,
           },
@@ -526,9 +600,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         inspector: {
           isOpen: true,
           type,
-          pathOrUrl,
-          title: pathOrUrl,
-          content: `Failed to load preview for ${pathOrUrl}: ${(err as Error).message}`,
+          pathOrUrl: cleanPath,
+          targetAnchor: anchor,
+          title: displayTitle,
+          content: `Failed to load preview for ${cleanPath}: ${(err as Error).message}`,
           loading: false,
         },
       })

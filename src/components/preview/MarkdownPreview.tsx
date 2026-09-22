@@ -1,12 +1,15 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useRef } from 'react'
 import MarkdownIt from 'markdown-it'
 import { MermaidBlock } from './MermaidBlock'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { slugify, matchesAnchor } from '../../utils/slugify'
 
 interface MarkdownPreviewProps {
   content: string
   containerRef?: React.RefObject<HTMLDivElement | null>
+  targetAnchor?: string | null
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
+  isInspector?: boolean
 }
 
 // Regex to detect mermaid code fences: ```mermaid ... ```
@@ -15,16 +18,38 @@ const MERMAID_REGEX = /```mermaid\s*([\s\S]*?)```/g
 export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   containerRef,
+  targetAnchor,
   onScroll,
+  isInspector = false,
 }) => {
-  const { openInspector } = useWorkspaceStore()
+  const { openInspector, openFile, scrollToAnchor } = useWorkspaceStore()
+  const internalContainerRef = useRef<HTMLDivElement>(null)
+  const activeContainerRef = containerRef || internalContainerRef
 
   const md = useMemo(() => {
-    return new MarkdownIt({
+    const instance = new MarkdownIt({
       html: true,
       linkify: true,
       typographer: true,
     })
+
+    // Custom heading rule to inject id, data-slug, and data-heading attributes
+    instance.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+      const nextToken = tokens[idx + 1]
+      let headingText = ''
+      if (nextToken && nextToken.children) {
+        headingText = nextToken.children.map((c) => c.content).join('')
+      } else if (nextToken) {
+        headingText = nextToken.content || ''
+      }
+      const slug = slugify(headingText)
+      tokens[idx].attrSet('id', slug)
+      tokens[idx].attrSet('data-slug', slug)
+      tokens[idx].attrSet('data-heading', headingText.trim())
+      return self.renderToken(tokens, idx, options)
+    }
+
+    return instance
   }, [])
 
   // Parse markdown into interleaved segments of HTML and Mermaid blocks
@@ -63,33 +88,137 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     return parts
   }, [content, md])
 
-  // Intercept click on links to open in Side Inspector
+  // Automatically scroll to target anchor when specified
+  useEffect(() => {
+    if (!targetAnchor || !activeContainerRef.current) return
+
+    const container = activeContainerRef.current
+    const cleanAnchor = targetAnchor.replace(/^#/, '').toLowerCase().trim()
+    if (!cleanAnchor) return
+
+    const timeout = setTimeout(() => {
+      let targetEl: HTMLElement | null = null
+
+      try {
+        targetEl = container.querySelector(`#${CSS.escape(cleanAnchor)}`) as HTMLElement | null
+      } catch {}
+
+      if (!targetEl) {
+        try {
+          targetEl = container.querySelector(`[data-slug="${CSS.escape(cleanAnchor)}"]`) as HTMLElement | null
+        } catch {}
+      }
+
+      if (!targetEl) {
+        const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6, [id]')
+        for (const h of headings) {
+          const id = h.getAttribute('id') || ''
+          const text = h.textContent || ''
+          if (matchesAnchor(text, id, cleanAnchor)) {
+            targetEl = h as HTMLElement
+            break
+          }
+        }
+      }
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        targetEl.classList.add('anchor-highlight')
+        const glowTimer = setTimeout(() => {
+          targetEl?.classList.remove('anchor-highlight')
+        }, 2500)
+        return () => clearTimeout(glowTimer)
+      }
+    }, 60)
+
+    return () => clearTimeout(timeout)
+  }, [targetAnchor, segments, activeContainerRef])
+
+  // Intercept click on links:
+  // - Regular click: preview in Side Inspector (current file section or other file section)
+  // - Ctrl/Cmd + click: open in main tab and focus anchor
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest('a')
     if (!target) return
 
-    const href = target.getAttribute('href')
-    if (!href || href.startsWith('#')) return
+    const rawHref = target.getAttribute('href')
+    if (!rawHref) return
 
     e.preventDefault()
+    e.stopPropagation()
 
-    if (href.startsWith('http://') || href.startsWith('https://')) {
-      openInspector('web', href)
+    const isModifier = e.ctrlKey || e.metaKey
+
+    // 1. External HTTP/HTTPS links
+    if (rawHref.startsWith('http://') || rawHref.startsWith('https://')) {
+      if (isModifier) {
+        window.open(rawHref, '_blank')
+      } else {
+        openInspector('web', rawHref)
+      }
+      return
+    }
+
+    // 2. Parse file path and anchor
+    let filePath = rawHref
+    let anchor: string | null = null
+    const hashIdx = filePath.indexOf('#')
+    if (hashIdx !== -1) {
+      anchor = filePath.slice(hashIdx + 1)
+      filePath = filePath.slice(0, hashIdx)
+    }
+
+    const { tabs, activeTabId } = useWorkspaceStore.getState()
+    const activeTab = tabs.find((t) => t.id === activeTabId)
+
+    // Normalize relative path
+    let normalizedPath = filePath
+    if (normalizedPath) {
+      if (normalizedPath.startsWith('./')) normalizedPath = normalizedPath.slice(1)
+      if (!normalizedPath.startsWith('/')) normalizedPath = `/${normalizedPath}`
+    } else if (activeTab) {
+      // Empty path with anchor (e.g. href="#4-abc") refers to the active tab's file
+      normalizedPath = activeTab.path
+    }
+
+    if (isModifier) {
+      // Ctrl/Cmd + Click: Open in main tab and focus anchor
+      if (normalizedPath) {
+        openFile(normalizedPath, anchor || undefined)
+      } else if (anchor) {
+        scrollToAnchor(anchor)
+      }
     } else {
-      // Relative or absolute markdown file link
-      let normalized = href
-      if (normalized.startsWith('./')) normalized = normalized.slice(1)
-      if (!normalized.startsWith('/')) normalized = `/${normalized}`
-      openInspector('doc', normalized)
+      // Regular Click: Preview in Side Inspector
+      if (isInspector && !filePath && anchor) {
+        // If already inside inspector and clicking an anchor within the same file, scroll inspector
+        const cleanAnchor = anchor.replace(/^#/, '').toLowerCase().trim()
+        const container = activeContainerRef.current
+        if (container) {
+          const el = container.querySelector(`#${CSS.escape(cleanAnchor)}`) as HTMLElement | null
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            el.classList.add('anchor-highlight')
+            setTimeout(() => el.classList.remove('anchor-highlight'), 2500)
+            return
+          }
+        }
+      }
+
+      if (normalizedPath) {
+        openInspector('doc', normalizedPath, anchor || undefined)
+      } else if (anchor && activeTab) {
+        openInspector('doc', activeTab.path, anchor)
+      }
     }
   }
 
   return (
     <div
-      ref={containerRef}
+      ref={activeContainerRef}
       onScroll={onScroll}
       onClick={handleClick}
-      className="h-full overflow-y-auto px-6 py-4 markdown-body bg-[#0b0f19]"
+      className="h-full overflow-y-auto px-6 py-4 markdown-body bg-[#0b0f19] select-text"
     >
       {segments.map((seg) => {
         if (seg.type === 'mermaid') {

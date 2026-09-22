@@ -7,8 +7,15 @@ import { ResizeHandle } from '../common/ResizeHandle'
 import { FileEdit } from 'lucide-react'
 
 export const SplitWorkspace: React.FC = () => {
-  const { tabs, activeTabId, viewMode, splitRatio, changeSplitRatio, setSplitRatio } =
-    useWorkspaceStore()
+  const {
+    tabs,
+    activeTabId,
+    viewMode,
+    splitRatio,
+    targetAnchor,
+    changeSplitRatio,
+    setSplitRatio,
+  } = useWorkspaceStore()
   const { syncScroll } = useSettingsStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -76,6 +83,7 @@ export const SplitWorkspace: React.FC = () => {
           <MarkdownPreview
             content={activeTab.content}
             containerRef={previewRef}
+            targetAnchor={targetAnchor}
             onScroll={() => {
               // Can also sync back if needed
             }}

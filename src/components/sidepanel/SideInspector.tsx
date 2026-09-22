@@ -2,7 +2,7 @@ import React from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { MarkdownPreview } from '../preview/MarkdownPreview'
 import { ResizeHandle } from '../common/ResizeHandle'
-import { X, ExternalLink, FileText, Globe, Columns, Loader2 } from 'lucide-react'
+import { X, ExternalLink, FileText, Globe, Columns, Loader2, Hash } from 'lucide-react'
 
 export const SideInspector: React.FC = () => {
   const {
@@ -18,7 +18,7 @@ export const SideInspector: React.FC = () => {
 
   const handleOpenAsMainTab = () => {
     if (inspector.type === 'doc' && inspector.pathOrUrl) {
-      openFile(inspector.pathOrUrl)
+      openFile(inspector.pathOrUrl, inspector.targetAnchor || undefined)
       closeInspector()
     }
   }
@@ -51,21 +51,27 @@ export const SideInspector: React.FC = () => {
         <div className="flex h-9 select-none items-center justify-between border-b border-[#1e293b] bg-[#0f172a] px-3">
           <div className="flex items-center gap-2 truncate text-xs font-medium text-slate-200">
             {inspector.type === 'doc' ? (
-              <FileText size={14} className="text-cyan-400" />
+              <FileText size={14} className="text-cyan-400 shrink-0" />
             ) : (
-              <Globe size={14} className="text-sky-400" />
+              <Globe size={14} className="text-sky-400 shrink-0" />
             )}
-            <span className="truncate max-w-[220px]" title={inspector.title}>
+            <span className="truncate max-w-[200px]" title={inspector.title}>
               {inspector.title || 'Side Preview'}
             </span>
+            {inspector.targetAnchor && (
+              <span className="flex items-center gap-0.5 rounded bg-cyan-950/70 border border-cyan-800/50 px-1.5 py-0.5 text-[10px] font-mono text-cyan-300">
+                <Hash size={10} />
+                <span className="truncate max-w-[100px]">{inspector.targetAnchor}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
             {inspector.type === 'doc' && (
               <button
                 onClick={handleOpenAsMainTab}
-                className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100"
-                title="Open in Main Tab"
+                className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100 transition-colors"
+                title="Open in Main Tab (Ctrl+Click on links does this automatically)"
               >
                 <Columns size={13} />
               </button>
@@ -74,7 +80,7 @@ export const SideInspector: React.FC = () => {
             {inspector.type === 'web' && (
               <button
                 onClick={handleOpenInExternalBrowser}
-                className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100"
+                className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100 transition-colors"
                 title="Open in Browser"
               >
                 <ExternalLink size={13} />
@@ -83,7 +89,7 @@ export const SideInspector: React.FC = () => {
 
             <button
               onClick={closeInspector}
-              className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100"
+              className="rounded p-1 text-slate-400 hover:bg-[#1e293b] hover:text-slate-100 transition-colors"
               title="Close Inspector (Ctrl+\\)"
             >
               <X size={14} />
@@ -100,7 +106,11 @@ export const SideInspector: React.FC = () => {
             </div>
           ) : (
             <div className="p-2">
-              <MarkdownPreview content={inspector.content} />
+              <MarkdownPreview
+                content={inspector.content}
+                targetAnchor={inspector.targetAnchor}
+                isInspector
+              />
             </div>
           )}
         </div>

@@ -177,17 +177,36 @@ describe('WorkspaceStore - Tabs & File Management', () => {
     expect(useWorkspaceStore.getState().tabs.some(t => t.path === testPath)).toBe(false)
   })
 
-  it('manages side inspector state correctly', async () => {
+  it('manages side inspector state correctly with target anchor', async () => {
     const store = useWorkspaceStore.getState()
 
-    await store.openInspector('doc', '/diagrams.md')
+    // Test doc inspector with anchor
+    await store.openInspector('doc', '/diagrams.md#flowchart')
     let inspector = useWorkspaceStore.getState().inspector
     expect(inspector.isOpen).toBe(true)
     expect(inspector.type).toBe('doc')
+    expect(inspector.targetAnchor).toBe('flowchart')
+    expect(inspector.title).toContain('#flowchart')
     expect(inspector.content).toBeTruthy()
 
     store.closeInspector()
     inspector = useWorkspaceStore.getState().inspector
     expect(inspector.isOpen).toBe(false)
   })
+
+  it('navigates to anchor line and sets targetAnchor in openFile and scrollToAnchor', async () => {
+    const store = useWorkspaceStore.getState()
+    
+    // Open document with anchor
+    await store.openFile('/welcome.md', 'key-highlights')
+    const state = useWorkspaceStore.getState()
+    expect(state.targetAnchor).toBe('key-highlights')
+    expect(state.targetScrollLine).toBe(7)
+
+    // Scroll to another anchor in active tab
+    store.scrollToAnchor('live-mermaid-diagram-test')
+    expect(useWorkspaceStore.getState().targetAnchor).toBe('live-mermaid-diagram-test')
+    expect(useWorkspaceStore.getState().targetScrollLine).toBe(17)
+  })
 })
+

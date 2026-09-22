@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { extractTableOfContents } from '../utils/tocExtractor'
+import { extractTableOfContents, findAnchorLine } from '../utils/tocExtractor'
+import { slugify, matchesAnchor } from '../utils/slugify'
 
 describe('extractTableOfContents', () => {
   it('extracts H1 to H6 headings with accurate 1-indexed line numbers', () => {
@@ -69,5 +70,48 @@ graph TD
   it('returns empty array when there are no headings or empty string', () => {
     expect(extractTableOfContents('')).toEqual([])
     expect(extractTableOfContents('Just some paragraphs\nwithout any markdown headings.')).toEqual([])
+  })
+})
+
+describe('findAnchorLine & Anchor Matching', () => {
+  const doc = `# Welcome to MarkFlow
+Intro paragraph.
+
+## 1. Quick Start
+Step 1.
+
+## 2. Architecture & Design
+Core overview.
+
+## 4. ABC Feature
+Important details on feature ABC.
+
+<a id="custom-target"></a>
+Special section here.
+`
+
+  it('matches headings by slug or number like #4-abc to line numbers', () => {
+    expect(findAnchorLine(doc, '#4-abc')).toBe(10)
+    expect(findAnchorLine(doc, '4-abc')).toBe(10)
+    expect(findAnchorLine(doc, '4-abc-feature')).toBe(10)
+    expect(findAnchorLine(doc, 'architecture-design')).toBe(7)
+    expect(findAnchorLine(doc, '1-quick-start')).toBe(4)
+  })
+
+  it('matches explicit HTML anchors', () => {
+    expect(findAnchorLine(doc, 'custom-target')).toBe(13)
+  })
+
+  it('returns null for non-existent anchors', () => {
+    expect(findAnchorLine(doc, 'non-existent')).toBe(null)
+    expect(findAnchorLine(doc, '')).toBe(null)
+  })
+
+  it('tests slugify and matchesAnchor accurately', () => {
+    expect(slugify('4. ABC')).toBe('4-abc')
+    expect(slugify('### Hello World!')).toBe('hello-world')
+    expect(matchesAnchor('4. ABC Feature', '4-abc-feature', '4-abc')).toBe(true)
+    expect(matchesAnchor('Quick Start', 'quick-start', 'quick-start')).toBe(true)
+    expect(matchesAnchor('Quick Start', 'quick-start', 'other')).toBe(false)
   })
 })
