@@ -28,6 +28,9 @@ export interface WorkspaceState {
   fileTree: FileEntry[]
   expandedFolders: Set<string>
   isSidebarOpen: boolean
+  sidebarWidth: number
+  splitRatio: number
+  inspectorWidth: number
   viewMode: ViewMode
   inspector: InspectorState
   isQuickSwitcherOpen: boolean
@@ -46,6 +49,10 @@ export interface WorkspaceState {
   deleteFile: (path: string) => Promise<void>
   toggleFolder: (path: string) => void
   toggleSidebar: () => void
+  setSidebarWidth: (width: number) => void
+  setSplitRatio: (ratio: number) => void
+  setInspectorWidth: (width: number) => void
+  resetPanelSizes: () => void
   setViewMode: (mode: ViewMode) => void
   openInspector: (type: 'doc' | 'web', pathOrUrl: string) => Promise<void>
   closeInspector: () => void
@@ -53,23 +60,82 @@ export interface WorkspaceState {
   setStatusMessage: (msg: string) => void
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  tabs: [],
-  activeTabId: null,
-  fileTree: [],
-  expandedFolders: new Set(['/notes']),
-  isSidebarOpen: true,
-  viewMode: 'split',
-  inspector: {
-    isOpen: false,
-    type: null,
-    pathOrUrl: null,
-    title: '',
-    content: '',
-    loading: false,
-  },
-  isQuickSwitcherOpen: false,
-  statusMessage: 'Ready',
+const loadSavedPanelSizes = () => {
+  try {
+    const raw = localStorage.getItem('markflow_panel_sizes_v1')
+    if (raw) return JSON.parse(raw)
+  } catch {
+    // fallback
+  }
+  return { sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380 }
+}
+
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
+  const initialSizes = loadSavedPanelSizes()
+
+  return {
+    tabs: [],
+    activeTabId: null,
+    fileTree: [],
+    expandedFolders: new Set(['/notes']),
+    isSidebarOpen: true,
+    sidebarWidth: initialSizes.sidebarWidth ?? 224,
+    splitRatio: initialSizes.splitRatio ?? 50,
+    inspectorWidth: initialSizes.inspectorWidth ?? 380,
+    viewMode: 'split',
+    inspector: {
+      isOpen: false,
+      type: null,
+      pathOrUrl: null,
+      title: '',
+      content: '',
+      loading: false,
+    },
+    isQuickSwitcherOpen: false,
+    statusMessage: 'Ready',
+
+    setSidebarWidth: (width: number) => {
+      const clamped = Math.max(160, Math.min(450, width))
+      set({ sidebarWidth: clamped })
+      try {
+        const current = loadSavedPanelSizes()
+        localStorage.setItem(
+          'markflow_panel_sizes_v1',
+          JSON.stringify({ ...current, sidebarWidth: clamped })
+        )
+      } catch {}
+    },
+
+    setSplitRatio: (ratio: number) => {
+      const clamped = Math.max(20, Math.min(80, ratio))
+      set({ splitRatio: clamped })
+      try {
+        const current = loadSavedPanelSizes()
+        localStorage.setItem(
+          'markflow_panel_sizes_v1',
+          JSON.stringify({ ...current, splitRatio: clamped })
+        )
+      } catch {}
+    },
+
+    setInspectorWidth: (width: number) => {
+      const clamped = Math.max(260, Math.min(650, width))
+      set({ inspectorWidth: clamped })
+      try {
+        const current = loadSavedPanelSizes()
+        localStorage.setItem(
+          'markflow_panel_sizes_v1',
+          JSON.stringify({ ...current, inspectorWidth: clamped })
+        )
+      } catch {}
+    },
+
+    resetPanelSizes: () => {
+      set({ sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380 })
+      try {
+        localStorage.removeItem('markflow_panel_sizes_v1')
+      } catch {}
+    },
 
   initWorkspace: async () => {
     const adapter = getFileSystemAdapter()
@@ -325,4 +391,5 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setStatusMessage: (msg: string) => {
     set({ statusMessage: msg })
   },
-}))
+}
+})

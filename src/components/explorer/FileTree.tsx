@@ -99,7 +99,7 @@ export const FileTree: React.FC = () => {
   }
 
   return (
-    <div className="flex h-full flex-col select-none border-r border-[#1e293b] bg-[#0f172a] text-slate-300">
+    <div className="flex h-full flex-col select-none bg-[#0f172a] text-slate-300">
       {/* Explorer Header */}
       <div className="flex h-9 items-center justify-between border-b border-[#1e293b] px-3">
         <span className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">

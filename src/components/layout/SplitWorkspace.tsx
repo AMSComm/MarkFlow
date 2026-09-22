@@ -3,11 +3,13 @@ import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { CodeMirrorEditor } from '../editor/CodeMirrorEditor'
 import { MarkdownPreview } from '../preview/MarkdownPreview'
+import { ResizeHandle } from '../common/ResizeHandle'
 import { FileEdit } from 'lucide-react'
 
 export const SplitWorkspace: React.FC = () => {
-  const { tabs, activeTabId, viewMode } = useWorkspaceStore()
+  const { tabs, activeTabId, viewMode, splitRatio, setSplitRatio } = useWorkspaceStore()
   const { syncScroll } = useSettingsStore()
+  const containerRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const isSyncingFromEditor = useRef(false)
 
@@ -18,6 +20,14 @@ export const SplitWorkspace: React.FC = () => {
     isSyncingFromEditor.current = true
     const preview = previewRef.current
     preview.scrollTop = scrollFraction * (preview.scrollHeight - preview.clientHeight)
+  }
+
+  const handleSplitResize = (deltaX: number) => {
+    if (!containerRef.current) return
+    const totalWidth = containerRef.current.clientWidth
+    if (totalWidth <= 0) return
+    const deltaPercent = (deltaX / totalWidth) * 100
+    setSplitRatio(splitRatio + deltaPercent)
   }
 
   if (!activeTab) {
@@ -31,13 +41,12 @@ export const SplitWorkspace: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div ref={containerRef} className="flex flex-1 overflow-hidden">
       {/* Editor Pane */}
       {(viewMode === 'split' || viewMode === 'editor') && (
         <div
-          className={`h-full overflow-hidden ${
-            viewMode === 'split' ? 'w-1/2 border-r border-[#1e293b]' : 'w-full'
-          }`}
+          style={{ width: viewMode === 'split' ? `${splitRatio}%` : '100%' }}
+          className="h-full overflow-hidden"
         >
           <CodeMirrorEditor
             key={activeTab.id}
@@ -48,9 +57,21 @@ export const SplitWorkspace: React.FC = () => {
         </div>
       )}
 
+      {/* Resizer handle between Editor and Preview */}
+      {viewMode === 'split' && (
+        <ResizeHandle
+          onResize={handleSplitResize}
+          onDoubleClick={() => setSplitRatio(50)}
+          title="Drag to adjust split ratio (Double-click for 50/50)"
+        />
+      )}
+
       {/* Preview Pane */}
       {(viewMode === 'split' || viewMode === 'preview') && (
-        <div className={`h-full overflow-hidden ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
+        <div
+          style={{ width: viewMode === 'split' ? `${100 - splitRatio}%` : '100%' }}
+          className="h-full overflow-hidden"
+        >
           <MarkdownPreview
             content={activeTab.content}
             containerRef={previewRef}

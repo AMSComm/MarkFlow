@@ -7,11 +7,14 @@ import { SplitWorkspace } from './components/layout/SplitWorkspace'
 import { SideInspector } from './components/sidepanel/SideInspector'
 import { StatusBar } from './components/layout/StatusBar'
 import { QuickSwitcher } from './components/explorer/QuickSwitcher'
+import { ResizeHandle } from './components/common/ResizeHandle'
 
 export function App() {
   const {
     initWorkspace,
     isSidebarOpen,
+    sidebarWidth,
+    setSidebarWidth,
     toggleSidebar,
     toggleQuickSwitcher,
     saveActiveFile,
@@ -90,9 +93,19 @@ export function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar: File Tree */}
         {isSidebarOpen && (
-          <aside className="w-56 shrink-0 overflow-hidden">
-            <FileTree />
-          </aside>
+          <div className="flex h-full shrink-0">
+            <aside
+              style={{ width: `${sidebarWidth}px` }}
+              className="h-full overflow-hidden"
+            >
+              <FileTree />
+            </aside>
+            <ResizeHandle
+              onResize={(deltaX) => setSidebarWidth(sidebarWidth + deltaX)}
+              onDoubleClick={() => setSidebarWidth(224)}
+              title="Drag to resize Explorer (Double-click for default 224px)"
+            />
+          </div>
         )}
 
         {/* Center Canvas: Tab Bar + Editor & Preview */}
