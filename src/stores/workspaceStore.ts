@@ -476,17 +476,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const files = await adapter.listDirectory('/')
       set({ fileTree: files, statusMessage: 'Ready' })
 
-      // Open /welcome.md by default if available
-      const welcomePath = '/welcome.md'
-      try {
-        await get().openFile(welcomePath)
-      } catch {
-        // Fallback to first markdown file if exists
-        const first = files.find(
-          (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
-        )
-        if (first) {
-          await get().openFile(first.path)
+      // Check if there are initial opened files passed from desktop (e.g. Open With / CLI)
+      let initialOpened = false
+      if (adapter.getOpenedFiles) {
+        try {
+          const openedFiles = await adapter.getOpenedFiles()
+          if (openedFiles && openedFiles.length > 0) {
+            await get().openDroppedFilePaths(openedFiles)
+            initialOpened = true
+          }
+        } catch (e) {
+          console.warn('Failed to retrieve initial opened files:', e)
+        }
+      }
+
+      if (!initialOpened) {
+        // Open /welcome.md by default if available
+        const welcomePath = '/welcome.md'
+        try {
+          await get().openFile(welcomePath)
+        } catch {
+          // Fallback to first markdown file if exists
+          const first = files.find(
+            (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+          )
+          if (first) {
+            await get().openFile(first.path)
+          }
         }
       }
     } catch (err) {

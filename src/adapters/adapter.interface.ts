@@ -27,6 +27,7 @@ export interface FileSystemAdapter {
   fetchExternalUrl(url: string): Promise<ReaderArticle>;
   setWorkspaceRoot?(path: string): Promise<string>;
   readAbsoluteFile?(path: string): Promise<string>;
+  getOpenedFiles?(): Promise<string[]>;
 }
 
 declare global {

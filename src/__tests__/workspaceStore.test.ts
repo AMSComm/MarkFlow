@@ -327,6 +327,37 @@ describe('WorkspaceStore - External File Changes & Conflict Resolution', () => {
     expect(inspector.title).toContain('[Disk Version]')
     expect(inspector.content).toBe('# External version to compare')
   })
+
+  it('openDroppedFilePaths opens external files into active tabs', async () => {
+    const { getFileSystemAdapter } = await import('../adapters')
+    await getFileSystemAdapter().writeFile('/external-note.md', '# External Note\nSome content')
+
+    const store = useWorkspaceStore.getState()
+    await store.openDroppedFilePaths(['/external-note.md'])
+
+    const tabs = useWorkspaceStore.getState().tabs
+    const openedTab = tabs.find((t) => t.path === '/external-note.md')
+    expect(openedTab).toBeDefined()
+    expect(openedTab?.title).toBe('external-note.md')
+    expect(openedTab?.content).toBe('# External Note\nSome content')
+    expect(useWorkspaceStore.getState().activeTabId).toBe(openedTab?.id)
+  })
+
+  it('initWorkspace prioritizes getOpenedFiles when desktop passes initial files', async () => {
+    const { getFileSystemAdapter, MockFileSystemAdapter } = await import('../adapters')
+    const adapter = getFileSystemAdapter() as InstanceType<typeof MockFileSystemAdapter>
+    await adapter.writeFile('/opened-via-os.md', '# Opened via OS Open With')
+    adapter.setOpenedFilesForTest(['/opened-via-os.md'])
+
+    const store = useWorkspaceStore.getState()
+    await store.initWorkspace()
+
+    const tabs = useWorkspaceStore.getState().tabs
+    const openedTab = tabs.find((t) => t.path === '/opened-via-os.md')
+    expect(openedTab).toBeDefined()
+    expect(openedTab?.content).toBe('# Opened via OS Open With')
+    expect(useWorkspaceStore.getState().activeTabId).toBe(openedTab?.id)
+  })
 })
 
 

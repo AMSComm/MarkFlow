@@ -5,6 +5,22 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
+use tauri::{Emitter, Manager};
+
+static ACTIVE_WORKSPACE: OnceLock<RwLock<PathBuf>> = OnceLock::new();
+static PENDING_OPENED_FILES: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+
+fn get_pending_files_lock() -> &'static RwLock<Vec<String>> {
+    PENDING_OPENED_FILES.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+fn add_pending_file(path: String) {
+    if let Ok(mut list) = get_pending_files_lock().write() {
+        if !list.contains(&path) {
+            list.push(path);
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileEntry {
@@ -27,8 +43,6 @@ pub struct ReaderArticle {
     #[serde(rename = "siteName")]
     pub site_name: Option<String>,
 }
-
-static ACTIVE_WORKSPACE: OnceLock<RwLock<PathBuf>> = OnceLock::new();
 
 fn dirs_home() -> Option<PathBuf> {
     std::env::var_os("HOME")
@@ -87,7 +101,7 @@ fn set_current_workspace(new_path: PathBuf) {
 
 fn resolve_path(rel_path: &str) -> PathBuf {
     let p = PathBuf::from(rel_path);
-    if p.is_absolute() && p.exists() {
+    if p.is_absolute() {
         return p;
     }
     let base = get_current_workspace();
@@ -268,8 +282,33 @@ fn fetch_reader_article(url: String) -> Result<ReaderArticle, String> {
     })
 }
 
+#[tauri::command]
+fn get_opened_files() -> Vec<String> {
+    if let Ok(mut list) = get_pending_files_lock().write() {
+        let files = list.clone();
+        list.clear();
+        files
+    } else {
+        Vec::new()
+    }
+}
+
 fn main() {
-    tauri::Builder::default()
+    // Scan startup arguments for file paths passed directly
+    for arg in std::env::args().skip(1) {
+        if !arg.starts_with('-') {
+            let p = PathBuf::from(&arg);
+            if p.is_file() {
+                if let Ok(canonical) = p.canonicalize() {
+                    add_pending_file(canonical.to_string_lossy().to_string());
+                } else {
+                    add_pending_file(arg);
+                }
+            }
+        }
+    }
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -283,8 +322,30 @@ fn main() {
             create_directory,
             delete_entry,
             rename_entry,
-            fetch_reader_article
+            fetch_reader_article,
+            get_opened_files
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running MarkFlow desktop application");
+        .build(tauri::generate_context!())
+        .expect("error while building MarkFlow desktop application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Opened { urls } = event {
+            let mut paths = Vec::new();
+            for url in urls {
+                if let Ok(path) = url.to_file_path() {
+                    let path_str = path.to_string_lossy().to_string();
+                    add_pending_file(path_str.clone());
+                    let _ = app_handle.emit("open-file-path", &path_str);
+                    paths.push(path_str);
+                }
+            }
+            if !paths.is_empty() {
+                let _ = app_handle.emit("open-file-paths", &paths);
+                for (_label, window) in app_handle.webview_windows() {
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+        }
+    });
 }

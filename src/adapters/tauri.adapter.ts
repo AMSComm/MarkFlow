@@ -18,6 +18,10 @@ export class TauriFileSystemAdapter implements FileSystemAdapter {
     return await this.invoke<string>('read_absolute_file', { path })
   }
 
+  async getOpenedFiles(): Promise<string[]> {
+    return await this.invoke<string[]>('get_opened_files')
+  }
+
   async listDirectory(path = ''): Promise<FileEntry[]> {
     return await this.invoke<FileEntry[]>('list_directory', { path })
   }

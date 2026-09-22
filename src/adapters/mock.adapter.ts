@@ -224,6 +224,22 @@ export class MockFileSystemAdapter implements FileSystemAdapter {
     return result
   }
 
+  private openedFilesQueue: string[] = []
+
+  setOpenedFilesForTest(files: string[]): void {
+    this.openedFilesQueue = [...files]
+  }
+
+  async getOpenedFiles(): Promise<string[]> {
+    const files = [...this.openedFilesQueue]
+    this.openedFilesQueue = []
+    return files
+  }
+
+  async readAbsoluteFile(path: string): Promise<string> {
+    return this.readFile(path)
+  }
+
   async readFile(path: string): Promise<string> {
     const normalized = path.startsWith('/') ? path : `/${path}`
     if (normalized in this.files) {

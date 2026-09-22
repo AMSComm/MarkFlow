@@ -44,10 +44,13 @@ export function App() {
     initWorkspace()
   }, [initWorkspace])
 
-  // Tauri Desktop Native Drag-and-Drop listener
+  // Tauri Desktop Native Drag-and-Drop & File Association Open listeners
   useEffect(() => {
-    let unlisten: (() => void) | undefined
-    const setupTauriDrop = async () => {
+    let unlistenDrop: (() => void) | undefined
+    let unlistenBatchOpen: (() => void) | undefined
+    let unlistenSingleOpen: (() => void) | undefined
+
+    const setupTauriListeners = async () => {
       const isTauri =
         typeof window !== 'undefined' &&
         Boolean(
@@ -59,7 +62,7 @@ export function App() {
       try {
         const { getCurrentWebview } = await import('@tauri-apps/api/webview')
         const webview = getCurrentWebview()
-        unlisten = await webview.onDragDropEvent((event) => {
+        unlistenDrop = await webview.onDragDropEvent((event) => {
           if (event.payload.type === 'enter' || event.payload.type === 'over') {
             setIsDragOver(true)
           } else if (event.payload.type === 'leave') {
@@ -75,11 +78,29 @@ export function App() {
       } catch (err) {
         console.warn('Tauri onDragDropEvent listener not available:', err)
       }
+
+      try {
+        const { listen } = await import('@tauri-apps/api/event')
+        unlistenBatchOpen = await listen<string[]>('open-file-paths', (event) => {
+          if (event.payload && event.payload.length > 0) {
+            openDroppedFilePaths(event.payload)
+          }
+        })
+        unlistenSingleOpen = await listen<string>('open-file-path', (event) => {
+          if (event.payload) {
+            openDroppedFilePaths([event.payload])
+          }
+        })
+      } catch (err) {
+        console.warn('Tauri file association listener not available:', err)
+      }
     }
 
-    setupTauriDrop()
+    setupTauriListeners()
     return () => {
-      if (unlisten) unlisten()
+      if (unlistenDrop) unlistenDrop()
+      if (unlistenBatchOpen) unlistenBatchOpen()
+      if (unlistenSingleOpen) unlistenSingleOpen()
     }
   }, [openDroppedFilePaths])
 
