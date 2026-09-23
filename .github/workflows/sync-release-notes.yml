@@ -1,18 +1,12 @@
 name: Sync Release Notes
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'CHANGELOG.md'
-      - '.github/workflows/sync-release-notes.yml'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to update release notes for (e.g. v0.1.2)'
+        description: 'Tag to update release notes for (e.g. v0.1.3, leave empty for latest tag)'
         required: false
-        default: 'v0.1.2'
+        default: ''
 
 permissions:
   contents: write
