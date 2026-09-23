@@ -2,6 +2,19 @@
 
 All notable changes to **MarkFlow** will be documented in this file.
 
+## [v0.1.2] - 2026-09-23
+
+### 🎨 Visual & Identity
+- **Clean App Icon**: Removed blurry outer glow and surrounding dark background, featuring a sharp, clean squircle logo across all platforms.
+- **Universal App Icon Assets**: Regenerated icons for macOS (`.icns`), Windows (`.ico`, Appx assets), and Linux/Web.
+
+### 🚀 Direct In-App Auto-Update
+- **One-Click Update & Relaunch**: Upgraded `UpdateDialog` with live download progress tracking and automatic application restart via `tauri-plugin-process`.
+- **Automated Update Artifacts**: Enabled `createUpdaterArtifacts` in Tauri bundler configuration for automated signed binary distributions.
+- **Permission & Capability Matrix**: Configured `process:default` in desktop capability declarations to support seamless in-app relaunch.
+
+---
+
 ## [v0.1.1] - 2026-09-23
 
 ### 🚀 Features & Enhancements
