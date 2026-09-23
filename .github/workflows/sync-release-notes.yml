@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to update release notes for (e.g. v0.1.1)'
+        description: 'Tag to update release notes for (e.g. v0.1.2)'
         required: false
-        default: 'v0.1.1'
+        default: 'v0.1.2'
 
 permissions:
   contents: write
@@ -23,15 +23,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Update GitHub Release Notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TARGET_TAG="${{ github.event.inputs.tag || '' }}"
+          git fetch --tags || true
+          TARGET_TAG="${{ github.event.inputs.tag }}"
           if [ -z "$TARGET_TAG" ]; then
-            git fetch --tags
-            TARGET_TAG=$(git describe --tags --abbrev=0)
+            TARGET_TAG=$(git tag --sort=-v:refname | head -n 1)
           fi
           echo "Target tag: $TARGET_TAG"
           
