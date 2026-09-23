@@ -1,4 +1,7 @@
 import { slugify, matchesAnchor } from './slugify'
+import { findAnchorLine } from './tocExtractor'
+
+const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export interface ExtractedSection {
   title: string
@@ -16,7 +19,11 @@ export interface ExtractedSection {
 export function extractSection(markdown: string, anchor: string): ExtractedSection | null {
   if (!markdown || !anchor) return null
 
-  const cleanAnchor = anchor.replace(/^#/, '').toLowerCase().trim()
+  let cleanAnchor = anchor.replace(/^#/, '').trim()
+  try {
+    cleanAnchor = decodeURIComponent(cleanAnchor)
+  } catch {}
+  cleanAnchor = cleanAnchor.toLowerCase().trim()
   if (!cleanAnchor) return null
 
   const lines = markdown.split('\n')
@@ -41,10 +48,21 @@ export function extractSection(markdown: string, anchor: string): ExtractedSecti
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
     if (headingMatch) {
       const level = headingMatch[1].length
-      const title = headingMatch[2].replace(/#+$/, '').replace(/[*_`]/g, '').trim()
+      let rawTitle = headingMatch[2].replace(/#+$/, '').trim()
+      // Check for custom markdown ID: {#custom-id}
+      const customIdMatch = rawTitle.match(/\{#([^}]+)\}$/)
+      let customId = ''
+      if (customIdMatch) {
+        customId = customIdMatch[1].trim().toLowerCase()
+        rawTitle = rawTitle.replace(/\{#[^}]+\}$/, '').trim()
+      }
+      const title = rawTitle.replace(/[*_`~[\]()]/g, '').trim()
       const slug = slugify(title)
 
-      if (matchesAnchor(title, slug, cleanAnchor)) {
+      if (
+        (customId && (customId === cleanAnchor || matchesAnchor(title, customId, cleanAnchor))) ||
+        matchesAnchor(title, slug, cleanAnchor)
+      ) {
         startLine = i
         targetLevel = level
         targetTitle = title
@@ -53,12 +71,34 @@ export function extractSection(markdown: string, anchor: string): ExtractedSecti
     }
 
     // Also check for explicit HTML anchor: <a id="anchor"> or <a name="anchor">
-    const htmlAnchorMatch = line.match(new RegExp(`(?:id|name)=["']${cleanAnchor}["']`, 'i'))
-    if (htmlAnchorMatch) {
-      startLine = i
-      targetLevel = 6 // Treat as deep sub-level until next heading
-      targetTitle = cleanAnchor
-      break
+    try {
+      const escapedAnchor = escapeRegExp(cleanAnchor)
+      const htmlAnchorMatch = line.match(new RegExp(`(?:id|name)=["']${escapedAnchor}["']`, 'i'))
+      if (htmlAnchorMatch) {
+        startLine = i
+        targetLevel = 6 // Treat as deep sub-level until next heading
+        targetTitle = cleanAnchor
+        break
+      }
+    } catch {}
+  }
+
+  // Step 1.5: Fallback search if exact heading wasn't found
+  if (startLine === -1) {
+    const lineNum = findAnchorLine(markdown, cleanAnchor)
+    if (lineNum !== null && lineNum >= 1 && lineNum <= lines.length) {
+      const lineIdx = lineNum - 1
+      const line = lines[lineIdx]
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
+      if (headingMatch) {
+        startLine = lineIdx
+        targetLevel = headingMatch[1].length
+        targetTitle = headingMatch[2].replace(/#+$/, '').replace(/[*_`~[\]()]/g, '').trim()
+      } else {
+        startLine = lineIdx
+        targetLevel = 6
+        targetTitle = cleanAnchor
+      }
     }
   }
 

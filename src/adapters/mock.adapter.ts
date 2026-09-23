@@ -176,8 +176,15 @@ export class MockFileSystemAdapter implements FileSystemAdapter {
     } catch {}
   }
 
+  private currentRoot = '/'
+
   async getWorkspaceRoot(): Promise<string> {
-    return '/'
+    return this.currentRoot
+  }
+
+  async setWorkspaceRoot(path: string): Promise<string> {
+    this.currentRoot = path
+    return path
   }
 
   async listDirectory(dirPath = '/'): Promise<FileEntry[]> {

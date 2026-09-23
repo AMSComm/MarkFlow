@@ -4,6 +4,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { MermaidBlock } from './MermaidBlock'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { slugify, matchesAnchor } from '../../utils/slugify'
 
 interface MarkdownPreviewProps {
@@ -107,7 +108,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   onScroll,
   isInspector: _isInspector = false,
 }) => {
-  const { openInspector, openFile, scrollToAnchor } = useWorkspaceStore()
+  const { openInspector, openFile, scrollToAnchor, setHoveredLinkUrl } = useWorkspaceStore()
+  const { fontSize } = useSettingsStore()
   const internalContainerRef = useRef<HTMLDivElement>(null)
   const activeContainerRef = containerRef || internalContainerRef
 
@@ -327,15 +329,24 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         }
       } else {
         // Regular Click: preview ONLY the content of section #4-aaa in Side Inspector
-        if (anchor && activeTab) {
-          openInspector('doc', activeTab.path, anchor, true)
+        if (anchor) {
+          const docPath =
+            (_isInspector && useWorkspaceStore.getState().inspector.pathOrUrl) ||
+            (activeTab ? activeTab.path : '')
+          if (docPath) {
+            openInspector('doc', docPath, anchor, true)
+          }
         }
       }
     } else {
       // LINK OF AN EXTERNAL FILE
-      // If link contains an anchor (e.g. other.md#4-aaa): open external file and focus on #4-aaa
+      // If link contains an anchor (e.g. other.md#4-aaa):
       if (anchor) {
-        openFile(normalizedPath, anchor)
+        if (isModifier) {
+          openFile(normalizedPath, anchor)
+        } else {
+          openInspector('doc', normalizedPath, anchor, true)
+        }
       } else {
         // External file without anchor
         if (isModifier) {
@@ -347,11 +358,34 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     }
   }
 
+  const handleMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    const anchorEl = (e.target as HTMLElement).closest('a')
+    if (anchorEl) {
+      const rawHref = anchorEl.getAttribute('href')
+      if (rawHref) {
+        setHoveredLinkUrl(rawHref)
+      }
+    }
+  }
+
+  const handleMouseOut = (e: React.MouseEvent<HTMLDivElement>) => {
+    const anchorEl = (e.target as HTMLElement).closest('a')
+    if (anchorEl) {
+      const nextTarget = e.relatedTarget as Node | null
+      if (!nextTarget || !anchorEl.contains(nextTarget)) {
+        setHoveredLinkUrl(null)
+      }
+    }
+  }
+
   return (
     <div
       ref={activeContainerRef}
       onScroll={onScroll}
       onClick={handleClick}
+      onMouseOver={handleMouseOver}
+      onMouseOut={handleMouseOut}
+      style={{ fontSize: fontSize ? `${fontSize}px` : undefined }}
       className="h-full overflow-y-auto px-6 py-4 markdown-body bg-[#0b0f19] select-text"
     >
       {segments.map((seg) => {

@@ -1,6 +1,6 @@
 [package]
 name = "markflow"
-version = "0.1.0"
+version = "0.1.1"
 description = "MarkFlow - High-Performance Markdown & Mermaid Workspace"
 authors = ["AM Software <contact@amsoftware.com.vn>"]
 license = "MIT"

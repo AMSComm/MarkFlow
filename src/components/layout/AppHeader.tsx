@@ -40,6 +40,10 @@ export const AppHeader: React.FC = () => {
     toggleWordWrap,
     fontSize,
     setFontSize,
+    zoomLevel,
+    zoomIn,
+    zoomOut,
+    resetZoom,
   } = useSettingsStore()
 
   const [showSettings, setShowSettings] = useState(false)
@@ -76,13 +80,16 @@ export const AppHeader: React.FC = () => {
         </div>
 
         {activeTab && (
-          <div className="ml-3 hidden sm:flex items-center gap-1.5 text-slate-500 text-[11px]">
+          <div className="ml-3 hidden sm:flex items-center gap-1.5 text-slate-500 text-[11px] min-w-0">
             <span>/</span>
-            <span className="text-slate-300 font-medium truncate max-w-[200px]">
+            <span
+              className="text-slate-300 font-medium truncate max-w-[280px] md:max-w-[460px] lg:max-w-[700px]"
+              title={activeTab.path}
+            >
               {activeTab.path}
             </span>
             {activeTab.isDirty && (
-              <span className="text-amber-400 font-semibold text-[10px] bg-amber-950/40 px-1 rounded">
+              <span className="text-amber-400 font-semibold text-[10px] bg-amber-950/40 px-1 rounded shrink-0">
                 unsaved
               </span>
             )}
@@ -254,6 +261,33 @@ export const AppHeader: React.FC = () => {
                   <button
                     onClick={() => setFontSize(Math.min(22, fontSize + 1))}
                     className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300 hover:bg-slate-700"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+                <span>Zoom Level</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={zoomOut}
+                    className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300 hover:bg-slate-700"
+                    title="Zoom Out (Cmd/Ctrl -)"
+                  >
+                    -
+                  </button>
+                  <button
+                    onClick={resetZoom}
+                    className="font-mono text-xs hover:text-cyan-400 cursor-pointer"
+                    title="Reset Zoom to 100% (Cmd/Ctrl 0)"
+                  >
+                    {zoomLevel}%
+                  </button>
+                  <button
+                    onClick={zoomIn}
+                    className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300 hover:bg-slate-700"
+                    title="Zoom In (Cmd/Ctrl +)"
                   >
                     +
                   </button>

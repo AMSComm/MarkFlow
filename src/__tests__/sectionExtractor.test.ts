@@ -63,4 +63,38 @@ This is section 5, which must not be included.
     expect(extractSection(sampleDoc, 'non-existent-anchor')).toBeNull()
     expect(extractSection('', '4-aaa')).toBeNull()
   })
+
+  it('correctly matches Vietnamese headings and URL encoded anchors', () => {
+    const vnDoc = `# Tài liệu hệ thống
+
+## 1. Giới thiệu tổng quan
+Nội dung giới thiệu tổng quan ở đây.
+
+## 2. Hướng dẫn cài đặt & cấu hình
+Chi tiết các bước cài đặt hệ thống.
+- Bước 1: Clone repo
+- Bước 2: Chạy lệnh build
+
+## 3. Kiến trúc {#custom-arch}
+Mô tả kiến trúc hệ thống.
+`
+    // Match via slug with Vietnamese
+    const res1 = extractSection(vnDoc, '#huong-dan-cai-dat-cau-hinh')
+    expect(res1).not.toBeNull()
+    expect(res1?.title).toBe('2. Hướng dẫn cài đặt & cấu hình')
+    expect(res1?.content).toContain('Chi tiết các bước cài đặt hệ thống.')
+    expect(res1?.content).not.toContain('## 3. Kiến trúc')
+
+    // Match via URL encoded anchor: #2-h%C6%B0%E1%BB%9Bng-d%E1%BA%ABn...
+    const encodedAnchor = encodeURIComponent('2. Hướng dẫn cài đặt')
+    const res2 = extractSection(vnDoc, `#${encodedAnchor}`)
+    expect(res2).not.toBeNull()
+    expect(res2?.title).toBe('2. Hướng dẫn cài đặt & cấu hình')
+
+    // Match via custom ID {#custom-arch}
+    const res3 = extractSection(vnDoc, '#custom-arch')
+    expect(res3).not.toBeNull()
+    expect(res3?.title).toBe('3. Kiến trúc')
+    expect(res3?.content).toContain('Mô tả kiến trúc hệ thống.')
+  })
 })

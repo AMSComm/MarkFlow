@@ -7,12 +7,17 @@ export interface SettingsState {
   autoSave: boolean
   fontSize: number
   wordWrap: boolean
+  zoomLevel: number
   toggleVimMode: () => void
   toggleTheme: () => void
   toggleSyncScroll: () => void
   toggleAutoSave: () => void
   setFontSize: (size: number) => void
   toggleWordWrap: () => void
+  zoomIn: () => void
+  zoomOut: () => void
+  resetZoom: () => void
+  setZoomLevel: (level: number) => void
 }
 
 const SETTINGS_KEY = 'markflow_settings_v1'
@@ -31,6 +36,7 @@ const loadInitialSettings = () => {
     autoSave: true,
     fontSize: 14,
     wordWrap: true,
+    zoomLevel: 100,
   }
 }
 
@@ -65,14 +71,38 @@ export const useSettingsStore = create<SettingsState>((set) => {
       }),
     setFontSize: (fontSize: number) =>
       set((state) => {
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, fontSize }))
-        return { fontSize }
+        const clamped = Math.max(10, Math.min(32, fontSize))
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, fontSize: clamped }))
+        return { fontSize: clamped }
       }),
     toggleWordWrap: () =>
       set((state) => {
         const next = !state.wordWrap
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, wordWrap: next }))
         return { wordWrap: next }
+      }),
+    zoomIn: () =>
+      set((state) => {
+        const next = Math.min(200, (state.zoomLevel ?? 100) + 10)
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, zoomLevel: next }))
+        return { zoomLevel: next }
+      }),
+    zoomOut: () =>
+      set((state) => {
+        const next = Math.max(70, (state.zoomLevel ?? 100) - 10)
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, zoomLevel: next }))
+        return { zoomLevel: next }
+      }),
+    resetZoom: () =>
+      set((state) => {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, zoomLevel: 100 }))
+        return { zoomLevel: 100 }
+      }),
+    setZoomLevel: (zoomLevel: number) =>
+      set((state) => {
+        const clamped = Math.max(70, Math.min(200, zoomLevel))
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...state, zoomLevel: clamped }))
+        return { zoomLevel: clamped }
       }),
   }
 })

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useWorkspaceStore } from './stores/workspaceStore'
+import { useSettingsStore } from './stores/settingsStore'
 import { AppHeader } from './components/layout/AppHeader'
 import { TabBar } from './components/tabs/TabBar'
 import { FileTree } from './components/explorer/FileTree'
@@ -37,6 +38,7 @@ export function App() {
     openDroppedFilePaths,
     checkForExternalFileChanges,
   } = useWorkspaceStore()
+  const { zoomIn, zoomOut, resetZoom } = useSettingsStore()
 
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -54,7 +56,8 @@ export function App() {
       const isTauri =
         typeof window !== 'undefined' &&
         Boolean(
-          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+          (window as unknown as { isTauri?: boolean }).isTauri ||
+            (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
             (window as unknown as { __TAURI__?: unknown }).__TAURI__
         )
       if (!isTauri) return
@@ -156,6 +159,15 @@ export function App() {
       } else if (isMod && e.key === '3') {
         e.preventDefault()
         setViewMode('preview')
+      } else if (isMod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        zoomIn()
+      } else if (isMod && (e.key === '-' || e.key === '_')) {
+        e.preventDefault()
+        zoomOut()
+      } else if (isMod && e.key === '0') {
+        e.preventDefault()
+        resetZoom()
       } else if (isMod && (e.key === '\\' || e.key === '|')) {
         e.preventDefault()
         if (inspector.isOpen) {
@@ -174,11 +186,14 @@ export function App() {
     closeTab,
     inspector.isOpen,
     openInspector,
+    resetZoom,
     saveActiveFile,
     setViewMode,
     toggleQuickSwitcher,
     toggleSidebar,
     tabs,
+    zoomIn,
+    zoomOut,
   ])
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -196,13 +211,54 @@ export function App() {
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      openDroppedFiles(Array.from(e.dataTransfer.files))
+    // 1. Check if dropped files have native OS paths (Desktop / Tauri)
+    const fileList = Array.from(e.dataTransfer.files || [])
+    const nativePaths = fileList
+      .map((f) => (f as unknown as { path?: string }).path)
+      .filter((p): p is string => Boolean(p))
+
+    if (nativePaths.length > 0) {
+      await openDroppedFilePaths(nativePaths)
+      return
+    }
+
+    // 2. Check for directory drop in browser via File System Access API
+    const items = Array.from(e.dataTransfer.items || [])
+    for (const item of items) {
+      // @ts-expect-error - File System Access API
+      if (typeof item.getAsFileSystemHandle === 'function') {
+        try {
+          // @ts-expect-error - File System Access API
+          const handle = await item.getAsFileSystemHandle()
+          if (handle && handle.kind === 'directory') {
+            const { NativeBrowserFileSystemAdapter, setFileSystemAdapter } = await import(
+              './adapters'
+            )
+            const nativeAdapter = new NativeBrowserFileSystemAdapter(handle)
+            setFileSystemAdapter(nativeAdapter)
+            const dirFiles = await nativeAdapter.listDirectory('/')
+            useWorkspaceStore.setState({ fileTree: dirFiles, tabs: [], activeTabId: null })
+            const first = dirFiles.find(
+              (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
+            )
+            if (first) {
+              await useWorkspaceStore.getState().openFile(first.path)
+            }
+            useWorkspaceStore.setState({ statusMessage: `Opened folder: ${handle.name}` })
+            return
+          }
+        } catch {}
+      }
+    }
+
+    // 3. Fallback standard file drop
+    if (fileList.length > 0) {
+      openDroppedFiles(fileList)
     }
   }
 

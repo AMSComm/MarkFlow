@@ -23,7 +23,7 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  const { vimMode, wordWrap } = useSettingsStore()
+  const { vimMode, wordWrap, fontSize } = useSettingsStore()
   const { updateContent, saveActiveFile } = useWorkspaceStore()
 
   // Track if update is internal to prevent infinite re-renders
@@ -131,6 +131,16 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       extensions.push(EditorView.lineWrapping)
     }
 
+    if (fontSize) {
+      extensions.push(
+        EditorView.theme({
+          '&': { fontSize: `${fontSize}px` },
+          '.cm-content': { fontSize: `${fontSize}px` },
+          '.cm-gutters': { fontSize: `${fontSize}px` },
+        })
+      )
+    }
+
     const state = EditorState.create({
       doc: content,
       extensions,
@@ -147,7 +157,7 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       view.destroy()
       viewRef.current = null
     }
-  }, [tabId, vimMode, wordWrap])
+  }, [tabId, vimMode, wordWrap, fontSize])
 
   // Sync external content changes into the editor if not triggered internally
   useEffect(() => {

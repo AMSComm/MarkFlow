@@ -31,7 +31,8 @@ export const FileTree: React.FC = () => {
   const isTauri =
     typeof window !== 'undefined' &&
     Boolean(
-      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+      (window as unknown as { isTauri?: boolean }).isTauri ||
+        (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
         (window as unknown as { __TAURI__?: unknown }).__TAURI__
     )
 

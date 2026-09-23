@@ -358,6 +358,38 @@ describe('WorkspaceStore - External File Changes & Conflict Resolution', () => {
     expect(openedTab?.content).toBe('# Opened via OS Open With')
     expect(useWorkspaceStore.getState().activeTabId).toBe(openedTab?.id)
   })
+
+  it('openDroppedFilePaths switches workspace root when a folder is dropped', async () => {
+    const store = useWorkspaceStore.getState()
+    const folderPath = '/my-custom-project'
+    await store.openDroppedFilePaths([folderPath])
+
+    expect(localStorage.getItem('markflow_last_workspace_root')).toBe(folderPath)
+    expect(useWorkspaceStore.getState().statusMessage).toContain('Opened folder: my-custom-project')
+  })
+
+  it('initWorkspace restores saved workspace root from localStorage', async () => {
+    localStorage.setItem('markflow_last_workspace_root', '/restored-project')
+
+    const store = useWorkspaceStore.getState()
+    await store.initWorkspace()
+
+    const { getFileSystemAdapter } = await import('../adapters')
+    const root = await getFileSystemAdapter().getWorkspaceRoot()
+    expect(root).toBe('/restored-project')
+  })
+
+  it('updates and clears hoveredLinkUrl in state', () => {
+    const store = useWorkspaceStore.getState()
+    expect(store.hoveredLinkUrl).toBeNull()
+
+    store.setHoveredLinkUrl('https://example.com/guide')
+    expect(useWorkspaceStore.getState().hoveredLinkUrl).toBe('https://example.com/guide')
+
+    store.setHoveredLinkUrl(null)
+    expect(useWorkspaceStore.getState().hoveredLinkUrl).toBeNull()
+  })
 })
+
 
 

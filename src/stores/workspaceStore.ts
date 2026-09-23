@@ -47,8 +47,10 @@ export interface WorkspaceState {
   isOutlineOpen: boolean
   targetScrollLine: number | null
   targetAnchor: string | null
+  hoveredLinkUrl: string | null
 
   // Actions
+  setHoveredLinkUrl: (url: string | null) => void
   initWorkspace: () => Promise<void>
   refreshFileTree: () => Promise<void>
   openLocalDirectory: () => Promise<void>
@@ -105,6 +107,22 @@ const loadSavedPanelSizes = () => {
   return { sidebarWidth: 224, splitRatio: 50, inspectorWidth: 380, outlineRatio: 50 }
 }
 
+function findFirstMarkdownFile(entries: FileEntry[]): FileEntry | undefined {
+  for (const entry of entries) {
+    if (
+      !entry.isDirectory &&
+      (entry.name.endsWith('.md') || entry.name.endsWith('.markdown') || entry.name.endsWith('.txt'))
+    ) {
+      return entry
+    }
+    if (entry.isDirectory && entry.children && entry.children.length > 0) {
+      const found = findFirstMarkdownFile(entry.children)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   const initialSizes = loadSavedPanelSizes()
 
@@ -132,6 +150,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     isOutlineOpen: true,
     targetScrollLine: null,
     targetAnchor: null,
+    hoveredLinkUrl: null,
+
+    setHoveredLinkUrl: (url: string | null) => set({ hoveredLinkUrl: url }),
 
     toggleOutline: () => set((state) => ({ isOutlineOpen: !state.isOutlineOpen })),
 
@@ -155,7 +176,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const isTauri =
         typeof window !== 'undefined' &&
         Boolean(
-          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+          (window as unknown as { isTauri?: boolean }).isTauri ||
+            (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
             (window as unknown as { __TAURI__?: unknown }).__TAURI__
         )
 
@@ -167,21 +189,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
             multiple: false,
             title: 'Open Workspace Folder',
           })
-          if (selected && typeof selected === 'string') {
+          const targetPath = Array.isArray(selected) ? selected[0] : selected
+          if (targetPath && typeof targetPath === 'string') {
             const adapter = getFileSystemAdapter()
             if (adapter.setWorkspaceRoot) {
-              await adapter.setWorkspaceRoot(selected)
+              await adapter.setWorkspaceRoot(targetPath)
             }
+            try {
+              localStorage.setItem('markflow_last_workspace_root', targetPath)
+            } catch {}
             const files = await adapter.listDirectory('/')
             set({ fileTree: files, tabs: [], activeTabId: null })
 
-            const firstMd = files.find(
-              (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
-            )
+            const firstMd = findFirstMarkdownFile(files)
             if (firstMd) {
               await get().openFile(firstMd.path)
             }
-            const folderName = selected.split('/').filter(Boolean).pop() || selected
+            const folderName = targetPath.split('/').filter(Boolean).pop() || targetPath
             set({ statusMessage: `Opened folder: ${folderName}` })
           }
           return
@@ -201,9 +225,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           const files = await nativeAdapter.listDirectory('/')
           set({ fileTree: files, tabs: [], activeTabId: null })
 
-          const firstMd = files.find(
-            (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
-          )
+          const firstMd = findFirstMarkdownFile(files)
           if (firstMd) {
             await get().openFile(firstMd.path)
           }
@@ -224,7 +246,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const isTauri =
         typeof window !== 'undefined' &&
         Boolean(
-          (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+          (window as unknown as { isTauri?: boolean }).isTauri ||
+            (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
             (window as unknown as { __TAURI__?: unknown }).__TAURI__
         )
 
@@ -267,18 +290,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           try {
             if (adapter.setWorkspaceRoot) {
               await adapter.setWorkspaceRoot(filePath)
+              try {
+                localStorage.setItem('markflow_last_workspace_root', filePath)
+              } catch {}
               const files = await adapter.listDirectory('/')
               set({ fileTree: files, tabs: [], activeTabId: null })
-              const first = files.find(
-                (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
-              )
+              const first = findFirstMarkdownFile(files)
               if (first) {
                 await get().openFile(first.path)
               }
               set({ statusMessage: `Opened folder: ${name}` })
               return
             }
-          } catch {}
+          } catch (err) {
+            console.error('Failed to switch workspace on folder drop:', err)
+          }
           continue
         }
 
@@ -481,6 +507,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   initWorkspace: async () => {
     const adapter = getFileSystemAdapter()
     try {
+      // Restore previously opened workspace folder if available
+      const savedRoot =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem('markflow_last_workspace_root')
+          : null
+      if (savedRoot && adapter.setWorkspaceRoot) {
+        try {
+          await adapter.setWorkspaceRoot(savedRoot)
+        } catch (e) {
+          console.warn('Could not restore last workspace root:', e)
+          try {
+            localStorage.removeItem('markflow_last_workspace_root')
+          } catch {}
+        }
+      }
+
       const files = await adapter.listDirectory('/')
       set({ fileTree: files, statusMessage: 'Ready' })
 
@@ -505,9 +547,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           await get().openFile(welcomePath)
         } catch {
           // Fallback to first markdown file if exists
-          const first = files.find(
-            (f) => !f.isDirectory && (f.name.endsWith('.md') || f.name.endsWith('.markdown'))
-          )
+          const first = findFirstMarkdownFile(files)
           if (first) {
             await get().openFile(first.path)
           }
@@ -707,7 +747,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     type: 'doc' | 'web',
     pathOrUrl: string,
     targetAnchor?: string,
-    sectionOnly = false
+    _sectionOnly = false
   ) => {
     let cleanPath = pathOrUrl
     let anchor = targetAnchor || null
@@ -725,6 +765,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!cleanPath && activeTab) {
         cleanPath = activeTab.path
       }
+    }
+
+    if (anchor) {
+      anchor = anchor.replace(/^#/, '').trim()
+      try {
+        anchor = decodeURIComponent(anchor)
+      } catch {}
     }
 
     const parts = cleanPath.split('/')
@@ -761,8 +808,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         let isSection = false
         let secTitle: string | undefined = undefined
 
-        // If anchor is present and it's requested as sectionOnly or it is the same file
-        if (anchor && (sectionOnly || (activeTab && activeTab.path === cleanPath))) {
+        // If anchor is present, extract and display only that section
+        if (anchor) {
           const section = extractSection(rawContent, anchor)
           if (section) {
             finalContent = section.content

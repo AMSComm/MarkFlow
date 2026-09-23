@@ -26,4 +26,40 @@ describe('SettingsStore - VSCode & Vim Options', () => {
     store.toggleSyncScroll()
     expect(useSettingsStore.getState().syncScroll).toBe(!syncInitial)
   })
+
+  it('adjusts zoom level with zoomIn, zoomOut, resetZoom, and clamps to [70, 200]', () => {
+    const store = useSettingsStore.getState()
+    expect(store.zoomLevel).toBe(100)
+
+    store.zoomIn()
+    expect(useSettingsStore.getState().zoomLevel).toBe(110)
+
+    store.zoomOut()
+    expect(useSettingsStore.getState().zoomLevel).toBe(100)
+
+    store.setZoomLevel(150)
+    expect(useSettingsStore.getState().zoomLevel).toBe(150)
+
+    store.resetZoom()
+    expect(useSettingsStore.getState().zoomLevel).toBe(100)
+
+    // Clamps
+    store.setZoomLevel(300)
+    expect(useSettingsStore.getState().zoomLevel).toBe(200)
+
+    store.setZoomLevel(20)
+    expect(useSettingsStore.getState().zoomLevel).toBe(70)
+  })
+
+  it('adjusts and clamps fontSize within [10, 32]', () => {
+    const store = useSettingsStore.getState()
+    store.setFontSize(16)
+    expect(useSettingsStore.getState().fontSize).toBe(16)
+
+    store.setFontSize(50)
+    expect(useSettingsStore.getState().fontSize).toBe(32)
+
+    store.setFontSize(5)
+    expect(useSettingsStore.getState().fontSize).toBe(10)
+  })
 })

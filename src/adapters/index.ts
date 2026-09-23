@@ -15,7 +15,10 @@ export function getFileSystemAdapter(): FileSystemAdapter {
   if (activeAdapter) return activeAdapter
 
   // 1. Check if running inside Tauri Desktop
-  if (typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__)) {
+  if (
+    typeof window !== 'undefined' &&
+    Boolean(window.isTauri || window.__TAURI_INTERNALS__ || window.__TAURI__)
+  ) {
     activeAdapter = new TauriFileSystemAdapter()
     return activeAdapter
   }

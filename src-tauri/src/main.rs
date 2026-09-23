@@ -50,12 +50,19 @@ fn dirs_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+fn get_config_file_path() -> Option<PathBuf> {
+    dirs_home().map(|h| h.join(".markflow_workspace"))
+}
+
 fn get_default_workspace() -> PathBuf {
-    // If current_dir is a valid custom user folder (not root, not /Applications, not .app bundle)
+    let home_opt = dirs_home();
+    // 1. If current_dir is a valid custom user folder (e.g. CLI opened in custom folder)
     if let Ok(current) = std::env::current_dir() {
         let s = current.to_string_lossy();
+        let is_home = home_opt.as_ref().map(|h| h == &current).unwrap_or(false);
         if !s.is_empty()
             && s != "/"
+            && !is_home
             && !s.starts_with("/Applications")
             && !s.contains(".app")
             && !s.starts_with("/System")
@@ -64,7 +71,18 @@ fn get_default_workspace() -> PathBuf {
         }
     }
 
-    if let Some(home) = dirs_home() {
+    // 2. Check if a previously opened workspace was saved
+    if let Some(cfg) = get_config_file_path() {
+        if let Ok(saved) = fs::read_to_string(&cfg) {
+            let p = PathBuf::from(saved.trim());
+            if p.exists() && p.is_dir() {
+                return p;
+            }
+        }
+    }
+
+    // 3. Fallback to ~/Documents/MarkFlow
+    if let Some(home) = home_opt {
         let docs = home.join("Documents").join("MarkFlow");
         if !docs.exists() {
             let _ = fs::create_dir_all(&docs);
@@ -95,22 +113,24 @@ fn get_current_workspace() -> PathBuf {
 
 fn set_current_workspace(new_path: PathBuf) {
     if let Ok(mut lock) = get_workspace_lock().write() {
-        *lock = new_path;
+        *lock = new_path.clone();
+    }
+    if let Some(cfg) = get_config_file_path() {
+        let _ = fs::write(cfg, new_path.to_string_lossy().as_bytes());
     }
 }
 
 fn resolve_path(rel_path: &str) -> PathBuf {
-    let p = PathBuf::from(rel_path);
-    if p.is_absolute() {
-        return p;
-    }
     let base = get_current_workspace();
     let clean = rel_path.trim_start_matches('/');
     if clean.is_empty() {
-        base
-    } else {
-        base.join(clean)
+        return base;
     }
+    let p = PathBuf::from(rel_path);
+    if p.is_absolute() && (p.starts_with(&base) || p.exists()) {
+        return p;
+    }
+    base.join(clean)
 }
 
 #[tauri::command]
@@ -121,10 +141,15 @@ fn get_workspace_root() -> String {
 #[tauri::command]
 fn set_workspace_root(path: String) -> Result<String, String> {
     let p = PathBuf::from(&path);
-    if !p.exists() {
-        fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+    let dir = if p.is_file() {
+        p.parent().unwrap_or(&p).to_path_buf()
+    } else {
+        p
+    };
+    if !dir.exists() {
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     }
-    let canonical = p.canonicalize().unwrap_or(p);
+    let canonical = dir.canonicalize().unwrap_or(dir);
     let s = canonical.to_string_lossy().to_string();
     set_current_workspace(canonical);
     Ok(s)
@@ -136,79 +161,69 @@ fn read_absolute_file(path: String) -> Result<String, String> {
     fs::read_to_string(&p).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
-    let target_dir = resolve_path(&path);
-    if !target_dir.exists() {
-        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    }
-
-    let read_dir = fs::read_dir(&target_dir).map_err(|e| e.to_string())?;
+fn scan_directory(
+    dir: &PathBuf,
+    base: &PathBuf,
+    depth: usize,
+    max_depth: usize,
+) -> Result<Vec<FileEntry>, String> {
+    let read_dir = fs::read_dir(dir).map_err(|e| e.to_string())?;
     let mut entries: Vec<FileEntry> = Vec::new();
-    let base = get_default_workspace();
 
     for item in read_dir {
-        if let Ok(entry) = item {
-            let metadata = entry.metadata().map_err(|e| e.to_string())?;
-            let is_dir = metadata.is_dir();
-            let full_path = entry.path();
-            let rel = full_path
-                .strip_prefix(&base)
-                .unwrap_or(&full_path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            let virtual_path = format!("/{}", rel);
-            let name = entry.file_name().to_string_lossy().to_string();
+        let entry = match item {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
 
-            // Skip hidden dot-files
-            if name.starts_with('.') {
-                continue;
-            }
-
-            let mut children = None;
-            if is_dir {
-                // Pre-scan 1 level of sub-items
-                if let Ok(sub_read) = fs::read_dir(&full_path) {
-                    let mut subs = Vec::new();
-                    for sub in sub_read.flatten() {
-                        let sub_meta = sub.metadata().ok();
-                        let sub_is_dir = sub_meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
-                        let sub_name = sub.file_name().to_string_lossy().to_string();
-                        if sub_name.starts_with('.') {
-                            continue;
-                        }
-                        let sub_rel = sub
-                            .path()
-                            .strip_prefix(&base)
-                            .unwrap_or(&sub.path())
-                            .to_string_lossy()
-                            .replace('\\', "/");
-                        subs.push(FileEntry {
-                            name: sub_name,
-                            path: format!("/{}", sub_rel),
-                            is_directory: sub_is_dir,
-                            children: None,
-                            size: sub_meta.as_ref().map(|m| m.len()),
-                            updated_at: None,
-                        });
-                    }
-                    children = Some(subs);
-                }
-            }
-
-            entries.push(FileEntry {
-                name,
-                path: virtual_path,
-                is_directory: is_dir,
-                children,
-                size: Some(metadata.len()),
-                updated_at: metadata
-                    .modified()
-                    .ok()
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis() as u64),
-            });
+        let name = entry.file_name().to_string_lossy().to_string();
+        // Skip hidden dot-files and heavy build/node folders
+        if name.starts_with('.')
+            || name == "node_modules"
+            || name == "target"
+            || name == "dist"
+            || name == "build"
+            || name == ".git"
+        {
+            continue;
         }
+
+        let full_path = entry.path();
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        let is_dir = metadata.is_dir();
+        let rel = full_path
+            .strip_prefix(base)
+            .unwrap_or(&full_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let virtual_path = if rel.starts_with('/') {
+            rel
+        } else {
+            format!("/{}", rel)
+        };
+
+        let children = if is_dir && depth < max_depth {
+            scan_directory(&full_path, base, depth + 1, max_depth).ok()
+        } else {
+            None
+        };
+
+        entries.push(FileEntry {
+            name,
+            path: virtual_path,
+            is_directory: is_dir,
+            children,
+            size: if is_dir { None } else { Some(metadata.len()) },
+            updated_at: metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64),
+        });
     }
 
     entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
@@ -218,6 +233,17 @@ fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     });
 
     Ok(entries)
+}
+
+#[tauri::command]
+fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
+    let target_dir = resolve_path(&path);
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+    }
+
+    let base = get_current_workspace();
+    scan_directory(&target_dir, &base, 0, 5)
 }
 
 #[tauri::command]
@@ -294,7 +320,7 @@ fn get_opened_files() -> Vec<String> {
 }
 
 fn main() {
-    // Scan startup arguments for file paths passed directly
+    // Scan startup arguments for file or folder paths passed directly
     for arg in std::env::args().skip(1) {
         if !arg.starts_with('-') {
             let p = PathBuf::from(&arg);
@@ -303,6 +329,12 @@ fn main() {
                     add_pending_file(canonical.to_string_lossy().to_string());
                 } else {
                     add_pending_file(arg);
+                }
+            } else if p.is_dir() {
+                if let Ok(canonical) = p.canonicalize() {
+                    set_current_workspace(canonical);
+                } else {
+                    set_current_workspace(p);
                 }
             }
         }
@@ -334,7 +366,15 @@ fn main() {
             for url in urls {
                 if let Ok(path) = url.to_file_path() {
                     let path_str = path.to_string_lossy().to_string();
-                    add_pending_file(path_str.clone());
+                    if path.is_dir() {
+                        if let Ok(canonical) = path.canonicalize() {
+                            set_current_workspace(canonical);
+                        } else {
+                            set_current_workspace(path);
+                        }
+                    } else {
+                        add_pending_file(path_str.clone());
+                    }
                     let _ = app_handle.emit("open-file-path", &path_str);
                     paths.push(path_str);
                 }
@@ -349,3 +389,35 @@ fn main() {
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_path_workspace_root() {
+        let base = get_current_workspace();
+        assert_eq!(resolve_path("/"), base);
+        assert_eq!(resolve_path(""), base);
+    }
+
+    #[test]
+    fn test_resolve_path_virtual_files() {
+        let base = get_current_workspace();
+        assert_eq!(resolve_path("/welcome.md"), base.join("welcome.md"));
+        assert_eq!(resolve_path("welcome.md"), base.join("welcome.md"));
+        assert_eq!(resolve_path("/notes/todo.md"), base.join("notes/todo.md"));
+    }
+
+    #[test]
+    fn test_set_workspace_root_directory() {
+        let temp_dir = std::env::temp_dir().join("markflow_test_dir");
+        let _ = fs::create_dir_all(&temp_dir);
+        let res = set_workspace_root(temp_dir.to_string_lossy().to_string());
+        assert!(res.is_ok());
+        let current = get_current_workspace();
+        assert_eq!(current, temp_dir.canonicalize().unwrap());
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
+

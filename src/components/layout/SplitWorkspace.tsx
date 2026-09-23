@@ -19,7 +19,7 @@ export const SplitWorkspace: React.FC = () => {
     resolveConflictKeepLocal,
     resolveConflictCompareInInspector,
   } = useWorkspaceStore()
-  const { syncScroll } = useSettingsStore()
+  const { syncScroll, zoomLevel } = useSettingsStore()
   const containerRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const isSyncingFromEditor = useRef(false)
@@ -92,7 +92,11 @@ export const SplitWorkspace: React.FC = () => {
       )}
 
       {/* Editor & Preview Split Panes */}
-      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+      <div
+        ref={containerRef}
+        style={{ zoom: zoomLevel && zoomLevel !== 100 ? `${zoomLevel}%` : undefined }}
+        className="flex flex-1 overflow-hidden"
+      >
         {/* Editor Pane */}
         {(viewMode === 'split' || viewMode === 'editor') && (
           <div
