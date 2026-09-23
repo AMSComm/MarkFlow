@@ -111,12 +111,24 @@ fn get_current_workspace() -> PathBuf {
         .unwrap_or_else(|_| get_default_workspace())
 }
 
+fn clean_canonical_path(p: PathBuf) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let s = p.to_string_lossy();
+        if let Some(stripped) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    p
+}
+
 fn set_current_workspace(new_path: PathBuf) {
+    let cleaned = clean_canonical_path(new_path);
     if let Ok(mut lock) = get_workspace_lock().write() {
-        *lock = new_path.clone();
+        *lock = cleaned.clone();
     }
     if let Some(cfg) = get_config_file_path() {
-        let _ = fs::write(cfg, new_path.to_string_lossy().as_bytes());
+        let _ = fs::write(cfg, cleaned.to_string_lossy().as_bytes());
     }
 }
 
@@ -150,8 +162,9 @@ fn set_workspace_root(path: String) -> Result<String, String> {
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     }
     let canonical = dir.canonicalize().unwrap_or(dir);
-    let s = canonical.to_string_lossy().to_string();
-    set_current_workspace(canonical);
+    let cleaned = clean_canonical_path(canonical);
+    let s = cleaned.to_string_lossy().to_string();
+    set_current_workspace(cleaned);
     Ok(s)
 }
 
@@ -326,13 +339,13 @@ fn main() {
             let p = PathBuf::from(&arg);
             if p.is_file() {
                 if let Ok(canonical) = p.canonicalize() {
-                    add_pending_file(canonical.to_string_lossy().to_string());
+                    add_pending_file(clean_canonical_path(canonical).to_string_lossy().to_string());
                 } else {
                     add_pending_file(arg);
                 }
             } else if p.is_dir() {
                 if let Ok(canonical) = p.canonicalize() {
-                    set_current_workspace(canonical);
+                    set_current_workspace(clean_canonical_path(canonical));
                 } else {
                     set_current_workspace(p);
                 }
@@ -360,28 +373,29 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building MarkFlow desktop application");
 
-    app.run(|app_handle, event| {
-        if let tauri::RunEvent::Opened { urls } = event {
+    app.run(|_app_handle, _event| {
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+        if let tauri::RunEvent::Opened { urls } = _event {
             let mut paths = Vec::new();
             for url in urls {
                 if let Ok(path) = url.to_file_path() {
                     let path_str = path.to_string_lossy().to_string();
                     if path.is_dir() {
                         if let Ok(canonical) = path.canonicalize() {
-                            set_current_workspace(canonical);
+                            set_current_workspace(clean_canonical_path(canonical));
                         } else {
                             set_current_workspace(path);
                         }
                     } else {
                         add_pending_file(path_str.clone());
                     }
-                    let _ = app_handle.emit("open-file-path", &path_str);
+                    let _ = _app_handle.emit("open-file-path", &path_str);
                     paths.push(path_str);
                 }
             }
             if !paths.is_empty() {
-                let _ = app_handle.emit("open-file-paths", &paths);
-                for (_label, window) in app_handle.webview_windows() {
+                let _ = _app_handle.emit("open-file-paths", &paths);
+                for (_label, window) in _app_handle.webview_windows() {
                     let _ = window.unminimize();
                     let _ = window.set_focus();
                 }
@@ -416,7 +430,8 @@ mod tests {
         let res = set_workspace_root(temp_dir.to_string_lossy().to_string());
         assert!(res.is_ok());
         let current = get_current_workspace();
-        assert_eq!(current, temp_dir.canonicalize().unwrap());
+        let expected = clean_canonical_path(temp_dir.canonicalize().unwrap());
+        assert_eq!(current, expected);
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }

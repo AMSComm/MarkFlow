@@ -43,12 +43,14 @@
       {
         "ext": ["md", "markdown", "mdown", "mkdn"],
         "name": "Markdown Document",
+        "description": "Markdown Document",
         "role": "Editor",
         "mimeType": "text/markdown"
       },
       {
         "ext": ["txt"],
         "name": "Text Document",
+        "description": "Text Document",
         "role": "Editor",
         "mimeType": "text/plain"
       }
