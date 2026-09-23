@@ -2,6 +2,18 @@
 
 All notable changes to **MarkFlow** will be documented in this file.
 
+## [v0.1.3] - 2026-09-23
+
+### 📖 Reading Experience & Outline Navigation
+- **Outline Heading Jump**: Clicking any heading in the Outline sidebar now scrolls directly to that heading in Reader (Preview) mode, Split mode, and Editor mode with an animated accent glow.
+- **Active Heading Highlight**: The active outline item dynamically highlights when clicked, providing instant visual feedback.
+- **Default Reader Mode**: MarkFlow now opens documents in Reader (`Read`) mode by default for an uncluttered reading experience.
+
+### ⚙️ Quick Preferences
+- **Escape Key Dismissal**: Pressing `Escape` or clicking outside now smoothly closes the Preferences & Settings popover.
+
+---
+
 ## [v0.1.2] - 2026-09-23
 
 ### 🎨 Visual & Identity
