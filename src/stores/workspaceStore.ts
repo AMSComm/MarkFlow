@@ -1,8 +1,16 @@
 import { create } from 'zustand'
 import { getFileSystemAdapter, setFileSystemAdapter, NativeBrowserFileSystemAdapter } from '../adapters'
 import type { FileEntry } from '../adapters/adapter.interface'
-import { findAnchorLine } from '../utils/tocExtractor'
+import { findAnchorLine, extractTableOfContents } from '../utils/tocExtractor'
 import { extractSection } from '../utils/sectionExtractor'
+import { slugify } from '../utils/slugify'
+
+export interface TargetHeading {
+  line: number
+  text: string
+  slug: string
+  timestamp: number
+}
 
 export interface EditorTab {
   id: string
@@ -47,6 +55,7 @@ export interface WorkspaceState {
   isOutlineOpen: boolean
   targetScrollLine: number | null
   targetAnchor: string | null
+  targetHeading: TargetHeading | null
   hoveredLinkUrl: string | null
 
   // Actions
@@ -70,6 +79,7 @@ export interface WorkspaceState {
   toggleOutline: () => void
   scrollToLine: (line: number | null) => void
   scrollToAnchor: (anchor: string) => void
+  scrollToHeading: (heading: { line: number; text: string; slug?: string }) => void
   setTargetAnchor: (anchor: string | null) => void
   setSidebarWidth: (width: number) => void
   changeSidebarWidth: (delta: number) => void
@@ -136,7 +146,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     splitRatio: initialSizes.splitRatio ?? 50,
     inspectorWidth: initialSizes.inspectorWidth ?? 380,
     outlineRatio: initialSizes.outlineRatio ?? 50,
-    viewMode: 'split',
+    viewMode: 'preview',
     inspector: {
       isOpen: false,
       type: null,
@@ -150,13 +160,55 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     isOutlineOpen: true,
     targetScrollLine: null,
     targetAnchor: null,
+    targetHeading: null,
     hoveredLinkUrl: null,
 
     setHoveredLinkUrl: (url: string | null) => set({ hoveredLinkUrl: url }),
 
     toggleOutline: () => set((state) => ({ isOutlineOpen: !state.isOutlineOpen })),
 
-    scrollToLine: (line: number | null) => set({ targetScrollLine: line }),
+    scrollToHeading: (heading: { line: number; text: string; slug?: string }) => {
+      const slug = heading.slug || slugify(heading.text)
+      set({
+        targetScrollLine: heading.line,
+        targetAnchor: slug,
+        targetHeading: {
+          line: heading.line,
+          text: heading.text,
+          slug,
+          timestamp: Date.now(),
+        },
+      })
+    },
+
+    scrollToLine: (line: number | null) => {
+      if (line === null) {
+        set({ targetScrollLine: null })
+        return
+      }
+      const { tabs, activeTabId } = get()
+      const activeTab = tabs.find((t) => t.id === activeTabId)
+      let text = ''
+      let slug = ''
+      if (activeTab) {
+        const items = extractTableOfContents(activeTab.content)
+        const matched = items.find((h) => h.line === line)
+        if (matched) {
+          text = matched.text
+          slug = slugify(matched.text)
+        }
+      }
+      set({
+        targetScrollLine: line,
+        targetAnchor: slug || null,
+        targetHeading: {
+          line,
+          text,
+          slug,
+          timestamp: Date.now(),
+        },
+      })
+    },
 
     setTargetAnchor: (anchor: string | null) => set({ targetAnchor: anchor }),
 
@@ -165,11 +217,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const activeTab = tabs.find((t) => t.id === activeTabId)
       if (!activeTab) return
       const line = findAnchorLine(activeTab.content, anchor)
-      if (line !== null) {
-        set({ targetScrollLine: line, targetAnchor: anchor })
-      } else {
-        set({ targetAnchor: anchor })
-      }
+      const slug = slugify(anchor)
+      set({
+        targetScrollLine: line,
+        targetAnchor: anchor,
+        targetHeading: {
+          line: line ?? 0,
+          text: anchor,
+          slug,
+          timestamp: Date.now(),
+        },
+      })
     },
 
     openLocalDirectory: async () => {
@@ -584,10 +642,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({ activeTabId: existing.id })
       if (anchor) {
         const line = findAnchorLine(existing.content, anchor)
+        const slug = slugify(anchor)
         if (line !== null) {
           get().scrollToLine(line)
         }
-        set({ targetAnchor: anchor })
+        set({
+          targetAnchor: anchor,
+          targetHeading: {
+            line: line ?? 0,
+            text: anchor,
+            slug,
+            timestamp: Date.now(),
+          },
+        })
       }
       return
     }
@@ -612,10 +679,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       })
       if (anchor) {
         const line = findAnchorLine(content, anchor)
+        const slug = slugify(anchor)
         if (line !== null) {
           get().scrollToLine(line)
         }
-        set({ targetAnchor: anchor })
+        set({
+          targetAnchor: anchor,
+          targetHeading: {
+            line: line ?? 0,
+            text: anchor,
+            slug,
+            timestamp: Date.now(),
+          },
+        })
       }
     } catch (err) {
       console.error(`Failed to open file: ${cleanPath}`, err)

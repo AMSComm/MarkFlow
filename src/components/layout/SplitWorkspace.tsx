@@ -13,6 +13,7 @@ export const SplitWorkspace: React.FC = () => {
     viewMode,
     splitRatio,
     targetAnchor,
+    targetHeading,
     changeSplitRatio,
     setSplitRatio,
     reloadTabFromDisk,
@@ -131,6 +132,7 @@ export const SplitWorkspace: React.FC = () => {
               content={activeTab.content}
               containerRef={previewRef}
               targetAnchor={targetAnchor}
+              targetHeading={targetHeading}
               onScroll={() => {
                 // Can also sync back if needed
               }}

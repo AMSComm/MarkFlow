@@ -187,7 +187,7 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       const line = view.state.doc.line(Math.min(targetScrollLine, view.state.doc.lines))
       view.dispatch({
         selection: { anchor: line.from },
-        scrollIntoView: true,
+        effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 20 }),
       })
       scrollToLine(null)
     } catch (e) {

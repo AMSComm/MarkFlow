@@ -391,5 +391,68 @@ describe('WorkspaceStore - External File Changes & Conflict Resolution', () => {
   })
 })
 
+describe('WorkspaceStore - Default Reader Mode & Outline Navigation', () => {
+  beforeEach(async () => {
+    localStorage.clear()
+    const store = useWorkspaceStore.getState()
+    await store.initWorkspace()
+  })
+
+  it('defaults to preview (read) viewMode', () => {
+    const store = useWorkspaceStore.getState()
+    expect(store.viewMode).toBe('preview')
+  })
+
+  it('scrollToHeading sets targetScrollLine, targetAnchor and targetHeading with timestamp', () => {
+    const store = useWorkspaceStore.getState()
+    const before = Date.now()
+
+    store.scrollToHeading({
+      line: 12,
+      text: 'Architecture Overview',
+      slug: 'architecture-overview',
+    })
+
+    const state = useWorkspaceStore.getState()
+    expect(state.targetScrollLine).toBe(12)
+    expect(state.targetAnchor).toBe('architecture-overview')
+    expect(state.targetHeading).toBeDefined()
+    expect(state.targetHeading?.line).toBe(12)
+    expect(state.targetHeading?.text).toBe('Architecture Overview')
+    expect(state.targetHeading?.slug).toBe('architecture-overview')
+    expect(state.targetHeading?.timestamp).toBeGreaterThanOrEqual(before)
+  })
+
+  it('scrollToLine automatically detects heading text and slug when line matches', () => {
+    const store = useWorkspaceStore.getState()
+    const content = '# Title\n\nSome intro text\n\n## Key Highlights\nContent here'
+    const tabId = 'test_tab_heading'
+    useWorkspaceStore.setState({
+      tabs: [
+        {
+          id: tabId,
+          path: '/test.md',
+          title: 'test.md',
+          content,
+          initialContent: content,
+          isDirty: false,
+        },
+      ],
+      activeTabId: tabId,
+    })
+
+    // In content, line 5 is "## Key Highlights"
+    store.scrollToLine(5)
+
+    const state = useWorkspaceStore.getState()
+    expect(state.targetScrollLine).toBe(5)
+    expect(state.targetHeading?.line).toBe(5)
+    expect(state.targetHeading?.text).toBe('Key Highlights')
+    expect(state.targetHeading?.slug).toBe('key-highlights')
+    expect(state.targetAnchor).toBe('key-highlights')
+  })
+})
+
+
 
 

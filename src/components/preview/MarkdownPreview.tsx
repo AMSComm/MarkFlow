@@ -3,7 +3,7 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { MermaidBlock } from './MermaidBlock'
-import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useWorkspaceStore, type TargetHeading } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { slugify, matchesAnchor } from '../../utils/slugify'
 
@@ -11,6 +11,7 @@ interface MarkdownPreviewProps {
   content: string
   containerRef?: React.RefObject<HTMLDivElement | null>
   targetAnchor?: string | null
+  targetHeading?: TargetHeading | null
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   isInspector?: boolean
 }
@@ -105,6 +106,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   content,
   containerRef,
   targetAnchor,
+  targetHeading,
   onScroll,
   isInspector: _isInspector = false,
 }) => {
@@ -126,8 +128,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return renderFencedCodeBlock(token.content, token.info, instance.utils.escapeHtml)
     }
 
-    // Custom heading rule to inject id, data-slug, and data-heading attributes
-    instance.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+    // Custom heading rule to inject id, data-slug, data-heading, and data-line attributes
+    instance.renderer.rules.heading_open = (tokens, idx, options, env, self) => {
       const nextToken = tokens[idx + 1]
       let headingText = ''
       if (nextToken && nextToken.children) {
@@ -139,6 +141,11 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       tokens[idx].attrSet('id', slug)
       tokens[idx].attrSet('data-slug', slug)
       tokens[idx].attrSet('data-heading', headingText.trim())
+      if (tokens[idx].map) {
+        const offset = env && typeof env.lineOffset === 'number' ? env.lineOffset : 0
+        const line = tokens[idx].map[0] + 1 + offset
+        tokens[idx].attrSet('data-line', String(line))
+      }
       return self.renderToken(tokens, idx, options)
     }
 
@@ -154,9 +161,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     while ((match = MERMAID_REGEX.exec(content)) !== null) {
       if (match.index > lastIndex) {
         const textBefore = content.slice(lastIndex, match.index)
+        const lineOffset = content.slice(0, lastIndex).split('\n').length - 1
         parts.push({
           type: 'html',
-          content: md.render(textBefore),
+          content: md.render(textBefore, { lineOffset }),
           key: `html_${lastIndex}`,
         })
       }
@@ -171,9 +179,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     }
 
     if (lastIndex < content.length) {
+      const lineOffset = content.slice(0, lastIndex).split('\n').length - 1
       parts.push({
         type: 'html',
-        content: md.render(content.slice(lastIndex)),
+        content: md.render(content.slice(lastIndex), { lineOffset }),
         key: `html_${lastIndex}`,
       })
     }
@@ -181,33 +190,56 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     return parts
   }, [content, md])
 
-  // Automatically scroll to target anchor when specified
+  // Automatically scroll to target heading or target anchor when specified
   useEffect(() => {
-    if (!targetAnchor || !activeContainerRef.current) return
+    if (!activeContainerRef.current) return
+    if (!targetHeading && !targetAnchor) return
 
     const container = activeContainerRef.current
-    const cleanAnchor = targetAnchor.replace(/^#/, '').toLowerCase().trim()
-    if (!cleanAnchor) return
 
     const timeout = setTimeout(() => {
       let targetEl: HTMLElement | null = null
 
-      try {
-        targetEl = container.querySelector(`#${CSS.escape(cleanAnchor)}`) as HTMLElement | null
-      } catch {}
-
-      if (!targetEl) {
+      // 1. If targetHeading with line number is available, match exact data-line
+      if (targetHeading?.line) {
         try {
-          targetEl = container.querySelector(`[data-slug="${CSS.escape(cleanAnchor)}"]`) as HTMLElement | null
+          targetEl = container.querySelector(`[data-line="${targetHeading.line}"]`) as HTMLElement | null
         } catch {}
       }
 
-      if (!targetEl) {
+      // 2. Lookup by slug
+      const anchorCandidate =
+        targetHeading?.slug ||
+        (targetAnchor ? targetAnchor.replace(/^#/, '').toLowerCase().trim() : '')
+
+      if (!targetEl && anchorCandidate) {
+        try {
+          targetEl = container.querySelector(`#${CSS.escape(anchorCandidate)}`) as HTMLElement | null
+        } catch {}
+
+        if (!targetEl) {
+          try {
+            targetEl = container.querySelector(`[data-slug="${CSS.escape(anchorCandidate)}"]`) as HTMLElement | null
+          } catch {}
+        }
+      }
+
+      // 3. Lookup by data-heading
+      const textCandidate = targetHeading?.text || targetAnchor
+      if (!targetEl && textCandidate) {
+        const cleanText = textCandidate.replace(/^#+\s*/, '').trim()
+        try {
+          targetEl = container.querySelector(`[data-heading="${CSS.escape(cleanText)}"]`) as HTMLElement | null
+        } catch {}
+      }
+
+      // 4. Fallback search through all headings using matchesAnchor
+      if (!targetEl && anchorCandidate) {
         const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6, [id]')
         for (const h of headings) {
           const id = h.getAttribute('id') || ''
           const text = h.textContent || ''
-          if (matchesAnchor(text, id, cleanAnchor)) {
+          if (matchesAnchor(text, id, anchorCandidate)) {
             targetEl = h as HTMLElement
             break
           }
@@ -225,7 +257,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     }, 60)
 
     return () => clearTimeout(timeout)
-  }, [targetAnchor, segments, activeContainerRef])
+  }, [targetHeading, targetAnchor, segments, activeContainerRef])
 
   // Intercept click on links:
   // - Link #4-aaa of SAME file:

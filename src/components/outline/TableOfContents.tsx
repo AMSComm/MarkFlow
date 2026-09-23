@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { extractTableOfContents } from '../../utils/tocExtractor'
+import { slugify } from '../../utils/slugify'
 import { ListCollapse, ChevronDown, ChevronRight, Hash } from 'lucide-react'
 
 export const TableOfContents: React.FC = () => {
-  const { tabs, activeTabId, isOutlineOpen, toggleOutline, scrollToLine } = useWorkspaceStore()
+  const { tabs, activeTabId, isOutlineOpen, toggleOutline, scrollToHeading, targetHeading } =
+    useWorkspaceStore()
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const headings = useMemo(() => {
@@ -68,17 +70,27 @@ export const TableOfContents: React.FC = () => {
           ) : (
             headings.map((item) => {
               const indent = (item.level - 1) * 12 + 6
+              const isSelected = targetHeading?.line === item.line
               return (
                 <div
                   key={item.id}
-                  onClick={() => scrollToLine(item.line)}
+                  onClick={() => {
+                    scrollToHeading({
+                      line: item.line,
+                      text: item.text,
+                      slug: slugify(item.text),
+                    })
+                  }}
                   style={{ paddingLeft: `${indent}px` }}
-                  className={`group flex cursor-pointer items-center justify-between rounded py-1 pr-2 transition-colors hover:bg-[#1e293b] ${
-                    item.level === 1
-                      ? 'font-semibold text-slate-200'
-                      : item.level === 2
-                      ? 'font-medium text-slate-300'
-                      : 'text-slate-400'
+                  className={`group flex cursor-pointer items-center justify-between rounded py-1 pr-2 transition-colors ${
+                    isSelected
+                      ? 'bg-cyan-950/60 text-cyan-300 font-medium'
+                      : 'hover:bg-[#1e293b] ' +
+                        (item.level === 1
+                          ? 'font-semibold text-slate-200'
+                          : item.level === 2
+                          ? 'font-medium text-slate-300'
+                          : 'text-slate-400')
                   }`}
                   title={`Line ${item.line}: ${item.text}`}
                 >
@@ -86,7 +98,9 @@ export const TableOfContents: React.FC = () => {
                     <Hash
                       size={11}
                       className={`shrink-0 ${
-                        item.level === 1
+                        isSelected
+                          ? 'text-cyan-300'
+                          : item.level === 1
                           ? 'text-cyan-400'
                           : item.level === 2
                           ? 'text-sky-400'
@@ -95,7 +109,13 @@ export const TableOfContents: React.FC = () => {
                     />
                     <span className="truncate group-hover:text-cyan-300">{item.text}</span>
                   </div>
-                  <span className="text-[9px] font-mono text-slate-600 opacity-0 group-hover:opacity-100">
+                  <span
+                    className={`text-[9px] font-mono ${
+                      isSelected
+                        ? 'text-cyan-400/80 opacity-100'
+                        : 'text-slate-600 opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
                     L{item.line}
                   </span>
                 </div>

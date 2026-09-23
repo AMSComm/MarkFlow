@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import {
@@ -48,6 +48,35 @@ export const AppHeader: React.FC = () => {
 
   const [showSettings, setShowSettings] = useState(false)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
+  const settingsContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showSettings) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        setShowSettings(false)
+      }
+    }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        settingsContainerRef.current &&
+        !settingsContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowSettings(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSettings])
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
@@ -197,25 +226,26 @@ export const AppHeader: React.FC = () => {
           <PanelRight size={15} />
         </button>
 
-        {/* Settings Button */}
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className={`rounded p-1.5 transition-colors ${
-            showSettings
-              ? 'bg-[#1e293b] text-slate-100'
-              : 'text-slate-400 hover:bg-[#1e293b] hover:text-slate-200'
-          }`}
-          title="Preferences & Settings"
-        >
-          <Settings size={15} />
-        </button>
+        {/* Settings Button & Popover */}
+        <div ref={settingsContainerRef} className="relative">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`rounded p-1.5 transition-colors ${
+              showSettings
+                ? 'bg-[#1e293b] text-slate-100'
+                : 'text-slate-400 hover:bg-[#1e293b] hover:text-slate-200'
+            }`}
+            title="Preferences & Settings (Esc to close)"
+          >
+            <Settings size={15} />
+          </button>
 
-        {/* Settings Dropdown Popover */}
-        {showSettings && (
-          <div className="absolute right-3 top-12 z-50 w-64 rounded-xl border border-slate-800 bg-[#0f172a] p-3 shadow-2xl">
-            <h4 className="font-semibold text-slate-200 border-b border-slate-800 pb-1.5 mb-2.5">
-              Editor Preferences
-            </h4>
+          {/* Settings Dropdown Popover */}
+          {showSettings && (
+            <div className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-slate-800 bg-[#0f172a] p-3 shadow-2xl">
+              <h4 className="font-semibold text-slate-200 border-b border-slate-800 pb-1.5 mb-2.5">
+                Editor Preferences
+              </h4>
 
             <div className="space-y-2.5 text-xs text-slate-300">
               <label className="flex items-center justify-between cursor-pointer">
@@ -313,6 +343,7 @@ export const AppHeader: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
 
         {/* Modal Dialog for App Updates */}
         <UpdateDialog
