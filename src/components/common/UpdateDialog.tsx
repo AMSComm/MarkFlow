@@ -46,6 +46,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
   }
 
   const handleClose = () => {
+    if (downloading) return
     setUpdateInfo(null)
     setError(null)
     setDownloading(false)
@@ -57,6 +58,8 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
   React.useEffect(() => {
     if (!isOpen) return
     let active = true
+    setLoading(true)
+    setError(null)
     checkForAppUpdates()
       .then((res) => {
         if (!active) return
@@ -87,7 +90,6 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
       setInstallSuccess(true)
     } catch (err) {
       setError((err as Error).message)
-    } finally {
       setDownloading(false)
     }
   }
@@ -104,13 +106,14 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
               <Sparkles size={16} />
             </div>
             <div>
-              <h3 className="font-semibold text-sm text-slate-100">Check for Updates</h3>
-              <p className="text-[11px] text-slate-400">Current version: v{CURRENT_VERSION}</p>
+              <h3 className="font-semibold text-sm text-slate-100">Cập nhật phần mềm</h3>
+              <p className="text-[11px] text-slate-400">Phiên bản hiện tại: v{CURRENT_VERSION}</p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors cursor-pointer"
+            disabled={downloading}
+            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors cursor-pointer disabled:opacity-30"
           >
             <X size={15} />
           </button>
@@ -121,13 +124,13 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
           {loading ? (
             <div className="flex flex-col items-center justify-center py-6 gap-3 text-slate-400">
               <RefreshCw size={24} className="animate-spin text-cyan-400" />
-              <span className="text-xs">Checking GitHub & Tauri release channel...</span>
+              <span className="text-xs">Đang kiểm tra bản cập nhật mới nhất...</span>
             </div>
           ) : error ? (
             <div className="rounded-lg bg-red-950/40 border border-red-900/50 p-3 text-xs text-red-300 flex items-start gap-2">
               <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium">Could not check for updates</p>
+                <p className="font-medium">Không thể kiểm tra cập nhật</p>
                 <p className="text-[11px] text-red-400/80 mt-0.5">{error}</p>
               </div>
             </div>
@@ -136,16 +139,16 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
               <div className="flex items-center justify-between rounded-lg bg-cyan-950/30 border border-cyan-800/50 p-3">
                 <div>
                   <span className="font-semibold text-cyan-300 text-sm">
-                    New Version Available: v{updateInfo.latestVersion}
+                    Đã có phiên bản mới: v{updateInfo.latestVersion}
                   </span>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {updateInfo.releaseDate
-                      ? `Released on ${new Date(updateInfo.releaseDate).toLocaleDateString()}`
-                      : 'Recommended update'}
+                      ? `Phát hành ngày ${new Date(updateInfo.releaseDate).toLocaleDateString()}`
+                      : 'Bản cập nhật được khuyến nghị'}
                   </p>
                 </div>
                 <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-500/30">
-                  NEW
+                  MỚI
                 </span>
               </div>
 
@@ -155,34 +158,38 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
                 </div>
               )}
 
-              {progress !== null && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>Downloading update package...</span>
-                    <span>{progress}%</span>
+              {downloading && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between text-[11px] text-slate-300">
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw size={11} className="animate-spin text-cyan-400" />
+                      Đang tải và chuẩn bị cài đặt...
+                    </span>
+                    <span className="font-mono text-cyan-400">{progress !== null ? `${progress}%` : 'Đang xử lý'}</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                     <div
                       className="h-full bg-cyan-500 transition-all duration-200"
-                      style={{ width: `${progress}%` }}
+                      style={{ width: `${progress ?? 10}%` }}
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500">Ứng dụng sẽ tự động khởi động lại sau khi nạp xong.</p>
                 </div>
               )}
 
               {installSuccess && (
                 <div className="flex items-center gap-2 rounded-lg bg-emerald-950/40 border border-emerald-800/50 p-2.5 text-xs text-emerald-300">
                   <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
-                  <span>Update ready! Please restart MarkFlow to apply.</span>
+                  <span>Cập nhật hoàn tất! Đang khởi động lại ứng dụng...</span>
                 </div>
               )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
               <CheckCircle2 size={28} className="text-emerald-400" />
-              <p className="font-semibold text-sm text-slate-200">MarkFlow is up to date</p>
+              <p className="font-semibold text-sm text-slate-200">MarkFlow đang ở phiên bản mới nhất</p>
               <p className="text-xs text-slate-400">
-                You are running the latest version (v{CURRENT_VERSION}).
+                Bạn đang sử dụng phiên bản v{CURRENT_VERSION}.
               </p>
             </div>
           )}
@@ -196,22 +203,22 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
             className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 cursor-pointer disabled:opacity-50"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            <span>Check again</span>
+            <span>Kiểm tra lại</span>
           </button>
 
           <div className="flex items-center gap-2">
-            {updateInfo?.available && updateInfo.isTauri && !installSuccess && (
+            {updateInfo?.available && updateInfo.hasNativeUpdater && !installSuccess && (
               <button
                 onClick={handleInstall}
                 disabled={downloading}
                 className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 font-medium text-white hover:bg-cyan-500 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Download size={13} />
-                <span>{downloading ? 'Downloading...' : 'Install & Restart'}</span>
+                <span>{downloading ? 'Đang cập nhật...' : 'Cập nhật & Khởi động lại'}</span>
               </button>
             )}
 
-            {updateInfo?.available && (!updateInfo.isTauri || updateInfo.downloadUrl) && (
+            {updateInfo?.available && (!updateInfo.hasNativeUpdater || updateInfo.downloadUrl) && !downloading && (
               <a
                 href={updateInfo.downloadUrl || 'https://github.com/AMSComm/MarkFlow/releases'}
                 target="_blank"
@@ -219,15 +226,16 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose }) =
                 className="flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 font-medium text-white hover:bg-cyan-500 transition-colors cursor-pointer"
               >
                 <ExternalLink size={13} />
-                <span>View Release on GitHub</span>
+                <span>Xem bản phát hành trên GitHub</span>
               </a>
             )}
 
             <button
               onClick={handleClose}
-              className="rounded-lg bg-slate-800 px-3 py-1.5 font-medium text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
+              disabled={downloading}
+              className="rounded-lg bg-slate-800 px-3 py-1.5 font-medium text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-50"
             >
-              Close
+              Đóng
             </button>
           </div>
         </div>

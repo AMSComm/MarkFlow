@@ -72,7 +72,7 @@ export const AppHeader: React.FC = () => {
           <img
             src="/icon.png"
             alt="MarkFlow"
-            className="h-6 w-6 rounded-md object-cover shadow-xs border border-slate-700/50"
+            className="h-6 w-6 object-contain drop-shadow-xs"
           />
           <span className="font-bold text-sm tracking-tight text-slate-100">
             Mark<span className="text-cyan-400">Flow</span>

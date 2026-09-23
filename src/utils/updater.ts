@@ -1,3 +1,5 @@
+import type { Update } from '@tauri-apps/plugin-updater'
+
 export interface UpdateInfo {
   available: boolean
   currentVersion: string
@@ -7,6 +9,7 @@ export interface UpdateInfo {
   downloadUrl?: string
   isTauri: boolean
   error?: string
+  hasNativeUpdater?: boolean
 }
 
 export const CURRENT_VERSION = '0.1.1'
@@ -24,6 +27,8 @@ export function compareVersions(v1: string, v2: string): number {
   return 0
 }
 
+let cachedUpdate: Update | null = null
+
 export async function checkForAppUpdates(): Promise<UpdateInfo> {
   const isTauri =
     typeof window !== 'undefined' &&
@@ -36,6 +41,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
     try {
       const { check } = await import('@tauri-apps/plugin-updater')
       const update = await check()
+      cachedUpdate = update
       if (update) {
         return {
           available: true,
@@ -44,6 +50,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
           releaseDate: update.date,
           notes: update.body || 'New features and performance improvements.',
           isTauri: true,
+          hasNativeUpdater: true,
         }
       }
       return {
@@ -51,6 +58,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
         currentVersion: CURRENT_VERSION,
         latestVersion: CURRENT_VERSION,
         isTauri: true,
+        hasNativeUpdater: true,
       }
     } catch (err) {
       console.warn('Tauri native updater check error, falling back to GitHub API:', err)
@@ -68,7 +76,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
           available: false,
           currentVersion: CURRENT_VERSION,
           latestVersion: CURRENT_VERSION,
-          isTauri: false,
+          isTauri,
           notes: 'No releases published yet on GitHub repository.',
         }
       }
@@ -85,7 +93,8 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
       releaseDate: data.published_at,
       notes: data.body,
       downloadUrl: data.html_url,
-      isTauri: false,
+      isTauri,
+      hasNativeUpdater: false,
     }
   } catch (err) {
     return {
@@ -101,7 +110,12 @@ export async function installTauriUpdate(
   onProgress?: (downloaded: number, total?: number) => void
 ): Promise<void> {
   const { check } = await import('@tauri-apps/plugin-updater')
-  const update = await check()
+  const { relaunch } = await import('@tauri-apps/plugin-process')
+
+  let update = cachedUpdate
+  if (!update) {
+    update = await check()
+  }
   if (!update) throw new Error('No update available')
 
   let downloaded = 0
@@ -121,4 +135,7 @@ export async function installTauriUpdate(
         break
     }
   })
+
+  // Automatically restart the app to finalize the new update installation
+  await relaunch()
 }

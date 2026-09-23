@@ -30,6 +30,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "publisher": "AM Software",
     "copyright": "Copyright © 2026 AM Software",
     "icon": [
