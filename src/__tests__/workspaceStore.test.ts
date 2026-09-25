@@ -453,6 +453,74 @@ describe('WorkspaceStore - Default Reader Mode & Outline Navigation', () => {
   })
 })
 
+describe('WorkspaceStore - Tab Persistence Across Sessions', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useWorkspaceStore.setState({ tabs: [], activeTabId: null })
+  })
+
+  it('automatically persists open tab paths and active tab path to localStorage', () => {
+    const tab1 = {
+      id: 'tab_1',
+      path: '/docs/intro.md',
+      title: 'intro.md',
+      content: '# Intro',
+      initialContent: '# Intro',
+      isDirty: false,
+    }
+    const tab2 = {
+      id: 'tab_2',
+      path: '/docs/guide.md',
+      title: 'guide.md',
+      content: '# Guide',
+      initialContent: '# Guide',
+      isDirty: false,
+    }
+
+    useWorkspaceStore.setState({
+      tabs: [tab1, tab2],
+      activeTabId: 'tab_2',
+    })
+
+    const savedPaths = localStorage.getItem('markflow_open_tab_paths_v1')
+    expect(savedPaths).toBe(JSON.stringify(['/docs/intro.md', '/docs/guide.md']))
+
+    const savedActive = localStorage.getItem('markflow_active_tab_path_v1')
+    expect(savedActive).toBe('/docs/guide.md')
+  })
+
+  it('clears active tab in localStorage when all tabs are closed', () => {
+    useWorkspaceStore.setState({
+      tabs: [],
+      activeTabId: null,
+    })
+
+    const savedPaths = localStorage.getItem('markflow_open_tab_paths_v1')
+    expect(savedPaths).toBe(JSON.stringify([]))
+
+    const savedActive = localStorage.getItem('markflow_active_tab_path_v1')
+    expect(savedActive).toBeNull()
+  })
+
+  it('restores open tabs and active tab during initWorkspace', async () => {
+    // Setup saved state in localStorage with existing workspace files
+    localStorage.setItem(
+      'markflow_open_tab_paths_v1',
+      JSON.stringify(['/welcome.md', '/architecture.md'])
+    )
+    localStorage.setItem('markflow_active_tab_path_v1', '/architecture.md')
+
+    await useWorkspaceStore.getState().initWorkspace()
+
+    const state = useWorkspaceStore.getState()
+    expect(state.tabs.length).toBe(2)
+    expect(state.tabs.map((t) => t.path)).toEqual(['/welcome.md', '/architecture.md'])
+    const activeTab = state.tabs.find((t) => t.id === state.activeTabId)
+    expect(activeTab?.path).toBe('/architecture.md')
+  })
+})
+
+
 
 
 

@@ -11,6 +11,7 @@ import {
   buildSearchRegex,
   highlightPreviewMatches,
   clearPreviewHighlights,
+  setActivePreviewMatchIndex,
 } from '../../utils/previewSearch'
 
 interface MarkdownPreviewProps {
@@ -275,7 +276,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     return () => clearTimeout(timeout)
   }, [targetHeading, targetAnchor, segments, activeContainerRef])
 
-  // Handle in-preview search highlighting and active match navigation
+  // 1. Search highlighting effect: runs when search criteria or document content change
   useEffect(() => {
     if (isInspector) return // Do not affect side inspector
     const container = activeContainerRef.current
@@ -286,12 +287,17 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       return
     }
 
-    const regex = buildSearchRegex(searchTerm, caseSensitive, wholeWord, useRegex)
-    const { matchCount } = highlightPreviewMatches(container, regex, currentMatchIndex)
+    try {
+      const regex = buildSearchRegex(searchTerm, caseSensitive, wholeWord, useRegex)
+      const { matchCount } = highlightPreviewMatches(container, regex, 1)
 
-    const isEditorActive = useWorkspaceStore.getState().viewMode !== 'preview'
-    if (!isEditorActive) {
-      setMatchInfo(matchCount, currentMatchIndex > 0 ? currentMatchIndex : matchCount > 0 ? 1 : 0)
+      const isEditorActive = useWorkspaceStore.getState().viewMode !== 'preview'
+      if (!isEditorActive) {
+        const current = useSearchStore.getState().currentMatchIndex
+        setMatchInfo(matchCount, current > 0 ? current : matchCount > 0 ? 1 : 0)
+      }
+    } catch (err) {
+      console.warn('Error during preview search highlighting:', err)
     }
   }, [
     isSearchOpen,
@@ -299,42 +305,48 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     caseSensitive,
     wholeWord,
     useRegex,
-    currentMatchIndex,
     setMatchInfo,
     content,
     isInspector,
     activeContainerRef,
   ])
 
-  // Handle actionTrigger in preview-only mode (when editor is not handling it)
+  // 2. Active match navigation effect: runs smoothly when currentMatchIndex changes (e.g. Enter pressed)
+  // Non-destructive: zero DOM node recreation or normalization
+  useEffect(() => {
+    if (isInspector || !isSearchOpen || !searchTerm) return
+    const container = activeContainerRef.current
+    if (!container) return
+
+    try {
+      setActivePreviewMatchIndex(container, currentMatchIndex)
+    } catch (err) {
+      console.warn('Error setting active preview match index:', err)
+    }
+  }, [currentMatchIndex, isSearchOpen, searchTerm, isInspector, activeContainerRef])
+
+  // 3. Handle actionTrigger in preview-only mode (when editor is not handling findNext/findPrev)
   useEffect(() => {
     if (isInspector) return
     const isEditorActive = useWorkspaceStore.getState().viewMode !== 'preview'
     if (isEditorActive || !isSearchOpen || !actionTrigger) return
 
-    const container = activeContainerRef.current
-    if (!container) return
+    try {
+      const { matchCount, currentMatchIndex } = useSearchStore.getState()
+      if (matchCount === 0) return
 
-    const matches = Array.from(container.querySelectorAll('mark.mf-search-match'))
-    if (matches.length === 0) return
-
-    let nextIndex = currentMatchIndex
-    if (actionTrigger.type === 'findNext') {
-      nextIndex = currentMatchIndex >= matches.length ? 1 : currentMatchIndex + 1
-    } else if (actionTrigger.type === 'findPrev') {
-      nextIndex = currentMatchIndex <= 1 ? matches.length : currentMatchIndex - 1
-    }
-
-    setMatchInfo(matches.length, nextIndex)
-    matches.forEach((m, idx) => {
-      if (idx === nextIndex - 1) {
-        m.classList.add('mf-search-match-active')
-        m.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      } else {
-        m.classList.remove('mf-search-match-active')
+      let nextIndex = currentMatchIndex
+      if (actionTrigger.type === 'findNext') {
+        nextIndex = currentMatchIndex >= matchCount ? 1 : currentMatchIndex + 1
+      } else if (actionTrigger.type === 'findPrev') {
+        nextIndex = currentMatchIndex <= 1 ? matchCount : currentMatchIndex - 1
       }
-    })
-  }, [actionTrigger, isSearchOpen, currentMatchIndex, setMatchInfo, isInspector, activeContainerRef])
+
+      setMatchInfo(matchCount, nextIndex)
+    } catch (err) {
+      console.warn('Error handling preview-only search trigger:', err)
+    }
+  }, [actionTrigger, isSearchOpen, setMatchInfo, isInspector])
 
 
   // Intercept click on links:

@@ -133,6 +133,9 @@ function findFirstMarkdownFile(entries: FileEntry[]): FileEntry | undefined {
   return undefined
 }
 
+let isInitializingWorkspace = false
+
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   const initialSizes = loadSavedPanelSizes()
 
@@ -255,6 +258,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
             }
             try {
               localStorage.setItem('markflow_last_workspace_root', targetPath)
+              localStorage.removeItem('markflow_open_tab_paths_v1')
+              localStorage.removeItem('markflow_active_tab_path_v1')
             } catch {}
             const files = await adapter.listDirectory('/')
             set({ fileTree: files, tabs: [], activeTabId: null })
@@ -281,6 +286,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           setFileSystemAdapter(nativeAdapter)
 
           const files = await nativeAdapter.listDirectory('/')
+          try {
+            localStorage.removeItem('markflow_open_tab_paths_v1')
+            localStorage.removeItem('markflow_active_tab_path_v1')
+          } catch {}
           set({ fileTree: files, tabs: [], activeTabId: null })
 
           const firstMd = findFirstMarkdownFile(files)
@@ -350,6 +359,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
               await adapter.setWorkspaceRoot(filePath)
               try {
                 localStorage.setItem('markflow_last_workspace_root', filePath)
+                localStorage.removeItem('markflow_open_tab_paths_v1')
+                localStorage.removeItem('markflow_active_tab_path_v1')
               } catch {}
               const files = await adapter.listDirectory('/')
               set({ fileTree: files, tabs: [], activeTabId: null })
@@ -563,6 +574,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
   initWorkspace: async () => {
+    isInitializingWorkspace = true
     const adapter = getFileSystemAdapter()
     try {
       // Restore previously opened workspace folder if available
@@ -599,6 +611,55 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
 
       if (!initialOpened) {
+        // Restore previously opened tabs if available in localStorage
+        let savedTabPaths: string[] = []
+        let savedActivePath: string | null = null
+        try {
+          const raw = localStorage.getItem('markflow_open_tab_paths_v1')
+          if (raw) {
+            savedTabPaths = JSON.parse(raw)
+          }
+          savedActivePath = localStorage.getItem('markflow_active_tab_path_v1')
+        } catch {}
+
+        if (Array.isArray(savedTabPaths) && savedTabPaths.length > 0) {
+          const restoredTabs: EditorTab[] = []
+          for (const p of savedTabPaths) {
+            try {
+              let content = ''
+              if (adapter.readAbsoluteFile && p.startsWith('/Users')) {
+                content = await adapter.readAbsoluteFile(p)
+              } else {
+                content = await adapter.readFile(p)
+              }
+              const parts = p.split('/')
+              const title = parts[parts.length - 1] || 'untitled.md'
+              restoredTabs.push({
+                id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                path: p,
+                title,
+                content,
+                initialContent: content,
+                isDirty: false,
+              })
+            } catch (e) {
+              console.warn(`Could not restore tab: ${p}`, e)
+            }
+          }
+
+          if (restoredTabs.length > 0) {
+            let activeId = restoredTabs[0].id
+            if (savedActivePath) {
+              const matched = restoredTabs.find((t) => t.path === savedActivePath)
+              if (matched) activeId = matched.id
+            }
+            set({ tabs: restoredTabs, activeTabId: activeId })
+            initialOpened = true
+          }
+        }
+      }
+
+      if (!initialOpened) {
         // Open /welcome.md by default if available
         const welcomePath = '/welcome.md'
         try {
@@ -614,6 +675,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     } catch (err) {
       console.error('Failed to initialize workspace:', err)
       set({ statusMessage: 'Workspace init failed' })
+    } finally {
+      isInitializingWorkspace = false
+      persistOpenTabs(get().tabs, get().activeTabId)
     }
   },
 
@@ -1107,3 +1171,40 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   },
 }
 })
+
+/**
+ * Persists open tab file paths and the active tab path to localStorage.
+ */
+export const persistOpenTabs = (tabs: EditorTab[], activeTabId: string | null) => {
+  if (isInitializingWorkspace) return
+  if (typeof localStorage === 'undefined') return
+  try {
+    const paths = tabs.map((t) => t.path)
+    const serialized = JSON.stringify(paths)
+    if (localStorage.getItem('markflow_open_tab_paths_v1') !== serialized) {
+      localStorage.setItem('markflow_open_tab_paths_v1', serialized)
+    }
+
+    const activeTab = tabs.find((t) => t.id === activeTabId)
+    const activePath = activeTab ? activeTab.path : null
+    const currentSavedActive = localStorage.getItem('markflow_active_tab_path_v1')
+    if (activePath) {
+      if (currentSavedActive !== activePath) {
+        localStorage.setItem('markflow_active_tab_path_v1', activePath)
+      }
+    } else {
+      if (currentSavedActive !== null) {
+        localStorage.removeItem('markflow_active_tab_path_v1')
+      }
+    }
+  } catch {}
+}
+
+// Automatically subscribe to tab and active tab changes for instant persistence
+if (typeof window !== 'undefined' || typeof localStorage !== 'undefined') {
+  useWorkspaceStore.subscribe((state, prevState) => {
+    if (state.tabs === prevState.tabs && state.activeTabId === prevState.activeTabId) return
+    persistOpenTabs(state.tabs, state.activeTabId)
+  })
+}
+

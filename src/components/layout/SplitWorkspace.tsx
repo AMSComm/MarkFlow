@@ -5,6 +5,7 @@ import { CodeMirrorEditor } from '../editor/CodeMirrorEditor'
 import { MarkdownPreview } from '../preview/MarkdownPreview'
 import { ResizeHandle } from '../common/ResizeHandle'
 import { FloatingSearchBar } from '../search/FloatingSearchBar'
+import { ErrorBoundary } from '../common/ErrorBoundary'
 import { FileEdit, AlertTriangle, RotateCcw, Save, Eye } from 'lucide-react'
 
 export const SplitWorkspace: React.FC = () => {
@@ -107,12 +108,14 @@ export const SplitWorkspace: React.FC = () => {
             style={{ width: viewMode === 'split' ? `${splitRatio}%` : '100%' }}
             className="h-full overflow-hidden"
           >
-            <CodeMirrorEditor
-              key={activeTab.id}
-              content={activeTab.content}
-              tabId={activeTab.id}
-              onScroll={handleEditorScroll}
-            />
+            <ErrorBoundary fallbackTitle="Editor encountered an issue">
+              <CodeMirrorEditor
+                key={activeTab.id}
+                content={activeTab.content}
+                tabId={activeTab.id}
+                onScroll={handleEditorScroll}
+              />
+            </ErrorBoundary>
           </div>
         )}
 
@@ -131,15 +134,17 @@ export const SplitWorkspace: React.FC = () => {
             style={{ width: viewMode === 'split' ? `${100 - splitRatio}%` : '100%' }}
             className="h-full overflow-hidden"
           >
-            <MarkdownPreview
-              content={activeTab.content}
-              containerRef={previewRef}
-              targetAnchor={targetAnchor}
-              targetHeading={targetHeading}
-              onScroll={() => {
-                // Can also sync back if needed
-              }}
-            />
+            <ErrorBoundary fallbackTitle="Document preview encountered an issue">
+              <MarkdownPreview
+                content={activeTab.content}
+                containerRef={previewRef}
+                targetAnchor={targetAnchor}
+                targetHeading={targetHeading}
+                onScroll={() => {
+                  // Can also sync back if needed
+                }}
+              />
+            </ErrorBoundary>
           </div>
         )}
       </div>

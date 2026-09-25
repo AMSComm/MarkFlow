@@ -3,6 +3,7 @@ import {
   buildSearchRegex,
   clearPreviewHighlights,
   highlightPreviewMatches,
+  setActivePreviewMatchIndex,
 } from '../utils/previewSearch'
 
 describe('previewSearch utility - Regex Engine', () => {
@@ -49,4 +50,10 @@ describe('previewSearch utility - Regex Engine', () => {
     const res = highlightPreviewMatches({} as HTMLElement, null, 1)
     expect(res.matchCount).toBe(0)
   })
+
+  it('safely handles setActivePreviewMatchIndex with undefined or null container', () => {
+    expect(() => setActivePreviewMatchIndex(null, 1)).not.toThrow()
+    expect(() => setActivePreviewMatchIndex({} as HTMLElement, 1)).not.toThrow()
+  })
 })
+

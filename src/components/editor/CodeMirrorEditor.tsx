@@ -77,7 +77,9 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       const selTo = view.state.selection.main.to
 
       let item = cursor.next()
-      while (!item.done) {
+      let iterations = 0
+      while (!item.done && iterations < 5000) {
+        iterations++
         count++
         if (item.value.from === selFrom && item.value.to === selTo) {
           current = count
@@ -357,22 +359,26 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
     const view = viewRef.current
     if (!view || !actionTrigger) return
 
-    switch (actionTrigger.type) {
-      case 'findNext':
-        findNext(view)
-        break
-      case 'findPrev':
-        findPrevious(view)
-        break
-      case 'replace':
-        replaceNext(view)
-        break
-      case 'replaceAll':
-        replaceAll(view)
-        break
-    }
+    try {
+      switch (actionTrigger.type) {
+        case 'findNext':
+          findNext(view)
+          break
+        case 'findPrev':
+          findPrevious(view)
+          break
+        case 'replace':
+          replaceNext(view)
+          break
+        case 'replaceAll':
+          replaceAll(view)
+          break
+      }
 
-    computeMatches(view)
+      computeMatches(view)
+    } catch (err) {
+      console.warn('CodeMirror search action error:', err)
+    }
   }, [actionTrigger])
 
   return <div ref={containerRef} className="h-full w-full overflow-hidden bg-[#090d16]" />

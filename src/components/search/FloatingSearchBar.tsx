@@ -64,44 +64,52 @@ export const FloatingSearchBar: React.FC = () => {
   if (!isOpen) return null
 
   const handleFindKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      e.stopPropagation()
-      closeSearch()
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (e.shiftKey) {
-        triggerFindPrev()
-      } else {
-        triggerFindNext()
+    try {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        closeSearch()
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          triggerFindPrev()
+        } else {
+          triggerFindNext()
+        }
+      } else if (e.altKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        toggleCaseSensitive()
+      } else if (e.altKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault()
+        toggleWholeWord()
+      } else if (e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        toggleRegex()
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        toggleReplace()
       }
-    } else if (e.altKey && e.key.toLowerCase() === 'c') {
-      e.preventDefault()
-      toggleCaseSensitive()
-    } else if (e.altKey && e.key.toLowerCase() === 'w') {
-      e.preventDefault()
-      toggleWholeWord()
-    } else if (e.altKey && e.key.toLowerCase() === 'r') {
-      e.preventDefault()
-      toggleRegex()
-    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'h') {
-      e.preventDefault()
-      toggleReplace()
+    } catch (err) {
+      console.warn('Find keydown error:', err)
     }
   }
 
   const handleReplaceKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      e.stopPropagation()
-      closeSearch()
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (e.metaKey || e.ctrlKey || (e.altKey && e.shiftKey)) {
-        triggerReplaceAll()
-      } else {
-        triggerReplace()
+    try {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        closeSearch()
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (e.metaKey || e.ctrlKey || (e.altKey && e.shiftKey)) {
+          triggerReplaceAll()
+        } else {
+          triggerReplace()
+        }
       }
+    } catch (err) {
+      console.warn('Replace keydown error:', err)
     }
   }
 

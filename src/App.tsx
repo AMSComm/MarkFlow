@@ -11,6 +11,7 @@ import { StatusBar } from './components/layout/StatusBar'
 import { QuickSwitcher } from './components/explorer/QuickSwitcher'
 import { ResizeHandle } from './components/common/ResizeHandle'
 import { TableOfContents } from './components/outline/TableOfContents'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { UploadCloud } from 'lucide-react'
 
 export function App() {
@@ -353,7 +354,9 @@ export function App() {
         </main>
 
         {/* Right Sidebar: Side Link Preview Inspector */}
-        <SideInspector />
+        <ErrorBoundary fallbackTitle="Side Inspector encountered an issue">
+          <SideInspector />
+        </ErrorBoundary>
       </div>
 
       {/* Bottom Status Bar */}
