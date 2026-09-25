@@ -2,6 +2,17 @@
 
 All notable changes to **MarkFlow** will be documented in this file.
 
+## [v0.1.4] - 2026-09-25
+
+### 🔍 In-File Search & Replace
+- **Floating Toolbar**: Sleek, token-compliant floating Search & Replace toolbar (`Cmd+F` / `Cmd+H`) positioned in the top-right corner with smooth transitions.
+- **Full Search Suite**: Supports Case Sensitive (`Aa` / `Alt+C`), Whole Word (`W` / `Alt+W`), and Regular Expression (`.*` / `Alt+R`) searching.
+- **Find & Replace in Editor**: Replace current match or Replace All across the document with dirty tracking and instant CodeMirror 6 sync.
+- **Live Preview Highlighting**: Highlights all occurrences in Reader and Split preview modes with smooth scroll-to-match navigation.
+- **Global Shortcuts**: `Cmd+F` to find, `Cmd+H` / `Cmd+Option+F` to replace, `Enter` / `Shift+Enter` for next/previous match, and `Escape` to dismiss.
+
+---
+
 ## [v0.1.3] - 2026-09-23
 
 ### 📖 Reading Experience & Outline Navigation
