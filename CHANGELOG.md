@@ -2,6 +2,20 @@
 
 All notable changes to **MarkFlow** will be documented in this file.
 
+## [v0.1.5] - 2026-09-25
+
+### 📑 Tab Persistence Across Restarts
+- **Automatic Tab Memory**: Open file tabs and the active tab are now automatically remembered and restored across application restarts.
+- **Resilient Recovery**: Gracefully handles deleted/moved files and prevents tab state pollution when switching workspace folders.
+
+### 🛡️ Non-Destructive Search & Zero White Screen Guarantee
+- **CSS Custom Highlight API**: Replaced DOM-altering text node replacement with hardware-accelerated `::highlight(mf-search-match)` and `::highlight(mf-search-match-active)`. Completely eliminated React 19 reconciliation white screen crash when hitting `Enter` in Find.
+- **Decoupled Search Navigation**: Instant smooth scrolling between search matches without re-running document-wide highlight passes.
+- **Safe Search Guard**: Added iteration limits to CodeMirror search to prevent potential infinite loops on empty regex matches.
+- **MarkFlow ErrorBoundary**: Embedded a Dark Obsidian themed Error Boundary at root and pane levels (Editor, Preview, Side Inspector) with diagnostic details, copy error logs, and one-click app reload.
+
+---
+
 ## [v0.1.4] - 2026-09-25
 
 ### 🔍 In-File Search & Replace
