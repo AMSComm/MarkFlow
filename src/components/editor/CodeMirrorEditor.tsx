@@ -7,8 +7,19 @@ import { languages } from '@codemirror/language-data'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { bracketMatching, defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { vim } from '@replit/codemirror-vim'
+import {
+  search,
+  SearchQuery,
+  setSearchQuery,
+  findNext,
+  findPrevious,
+  replaceNext,
+  replaceAll,
+  highlightSelectionMatches,
+} from '@codemirror/search'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useSearchStore } from '../../stores/searchStore'
 
 interface CodeMirrorEditorProps {
   content: string
@@ -25,6 +36,60 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   const viewRef = useRef<EditorView | null>(null)
   const { vimMode, wordWrap, fontSize } = useSettingsStore()
   const { updateContent, saveActiveFile } = useWorkspaceStore()
+  const {
+    isOpen: isSearchOpen,
+    searchTerm,
+    replaceTerm,
+    caseSensitive,
+    wholeWord,
+    useRegex,
+    actionTrigger,
+    setMatchInfo,
+  } = useSearchStore()
+
+  // Helper to recompute matches count and active selection index
+  const computeMatches = (view: EditorView) => {
+    const { isOpen, searchTerm, caseSensitive, wholeWord, useRegex, replaceTerm, setMatchInfo } =
+      useSearchStore.getState()
+    if (!isOpen || !searchTerm) {
+      setMatchInfo(0, 0)
+      return
+    }
+
+    try {
+      const query = new SearchQuery({
+        search: searchTerm,
+        caseSensitive,
+        wholeWord,
+        regexp: useRegex,
+        replace: replaceTerm,
+      })
+
+      if (!query.valid) {
+        setMatchInfo(0, 0)
+        return
+      }
+
+      const cursor = query.getCursor(view.state.doc)
+      let count = 0
+      let current = 0
+      const selFrom = view.state.selection.main.from
+      const selTo = view.state.selection.main.to
+
+      let item = cursor.next()
+      while (!item.done) {
+        count++
+        if (item.value.from === selFrom && item.value.to === selTo) {
+          current = count
+        }
+        item = cursor.next()
+      }
+
+      setMatchInfo(count, current)
+    } catch {
+      setMatchInfo(0, 0)
+    }
+  }
 
   // Track if update is internal to prevent infinite re-renders
   const isInternalUpdateRef = useRef(false)
@@ -47,14 +112,68 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
       oneDark,
+      search({ top: false }),
+      highlightSelectionMatches(),
 
-      // Save shortcut Mod-s (Cmd+S on Mac, Ctrl+S on Win/Linux)
+      // Save and search shortcuts
       keymap.of([
         {
           key: 'Mod-s',
           run: () => {
             saveActiveFile()
             return true
+          },
+        },
+        {
+          key: 'Mod-f',
+          run: (v) => {
+            const sel = v.state.sliceDoc(
+              v.state.selection.main.from,
+              v.state.selection.main.to
+            )
+            useSearchStore.getState().openSearch({
+              showReplace: false,
+              initialQuery: sel || undefined,
+            })
+            return true
+          },
+        },
+        {
+          key: 'Mod-h',
+          run: (v) => {
+            const sel = v.state.sliceDoc(
+              v.state.selection.main.from,
+              v.state.selection.main.to
+            )
+            useSearchStore.getState().openSearch({
+              showReplace: true,
+              initialQuery: sel || undefined,
+            })
+            return true
+          },
+        },
+        {
+          key: 'Mod-Alt-f',
+          run: (v) => {
+            const sel = v.state.sliceDoc(
+              v.state.selection.main.from,
+              v.state.selection.main.to
+            )
+            useSearchStore.getState().openSearch({
+              showReplace: true,
+              initialQuery: sel || undefined,
+            })
+            return true
+          },
+        },
+        {
+          key: 'Escape',
+          run: () => {
+            if (useSearchStore.getState().isOpen) {
+              useSearchStore.getState().closeSearch()
+              return true
+            }
+            return false
           },
         },
         ...defaultKeymap,
@@ -119,6 +238,12 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
           isInternalUpdateRef.current = true
           const newDoc = update.state.doc.toString()
           updateContent(tabId, newDoc)
+        }
+        if (update.selectionSet || update.docChanged) {
+          const { isOpen, searchTerm } = useSearchStore.getState()
+          if (isOpen && searchTerm) {
+            computeMatches(update.view)
+          }
         }
       }),
     ]
@@ -194,6 +319,61 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
       console.warn('Could not scroll to line:', e)
     }
   }, [targetScrollLine, scrollToLine])
+
+  // Sync search query changes to CodeMirror
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+
+    if (!isSearchOpen || !searchTerm) {
+      view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: '' })),
+      })
+      setMatchInfo(0, 0)
+      return
+    }
+
+    try {
+      const query = new SearchQuery({
+        search: searchTerm,
+        caseSensitive,
+        wholeWord,
+        regexp: useRegex,
+        replace: replaceTerm,
+      })
+
+      view.dispatch({
+        effects: setSearchQuery.of(query),
+      })
+
+      computeMatches(view)
+    } catch {
+      setMatchInfo(0, 0)
+    }
+  }, [isSearchOpen, searchTerm, caseSensitive, wholeWord, useRegex, replaceTerm, setMatchInfo])
+
+  // React to find/replace action triggers
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !actionTrigger) return
+
+    switch (actionTrigger.type) {
+      case 'findNext':
+        findNext(view)
+        break
+      case 'findPrev':
+        findPrevious(view)
+        break
+      case 'replace':
+        replaceNext(view)
+        break
+      case 'replaceAll':
+        replaceAll(view)
+        break
+    }
+
+    computeMatches(view)
+  }, [actionTrigger])
 
   return <div ref={containerRef} className="h-full w-full overflow-hidden bg-[#090d16]" />
 }

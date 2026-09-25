@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useSearchStore } from '../../stores/searchStore'
 import {
   Sidebar,
   Search,
@@ -30,6 +31,12 @@ export const AppHeader: React.FC = () => {
     activeTabId,
     saveActiveFile,
   } = useWorkspaceStore()
+
+  const {
+    isOpen: isSearchOpen,
+    openSearch,
+    closeSearch,
+  } = useSearchStore()
 
   const {
     vimMode,
@@ -137,6 +144,28 @@ export const AppHeader: React.FC = () => {
           <span className="text-[11px] hidden md:inline">Jump to file...</span>
           <kbd className="rounded bg-slate-800 px-1 py-0.2 text-[9px] text-slate-400 font-mono">
             ⌘P
+          </kbd>
+        </button>
+
+        <button
+          onClick={() => {
+            if (isSearchOpen) {
+              closeSearch()
+            } else {
+              openSearch({ showReplace: false })
+            }
+          }}
+          className={`flex items-center gap-1.5 rounded-md border border-slate-800 bg-[#0f172a] px-2 py-1 transition-colors ${
+            isSearchOpen
+              ? 'border-[#0ea5e9] text-[#38bdf8]'
+              : 'text-slate-400 hover:border-slate-700 hover:text-slate-200'
+          }`}
+          title="Find in file (Ctrl+F)"
+        >
+          <Search size={13} className={isSearchOpen ? 'text-[#38bdf8]' : 'text-slate-400'} />
+          <span className="text-[11px] hidden md:inline">Find</span>
+          <kbd className="rounded bg-slate-800 px-1 py-0.2 text-[9px] text-slate-400 font-mono">
+            ⌘F
           </kbd>
         </button>
 

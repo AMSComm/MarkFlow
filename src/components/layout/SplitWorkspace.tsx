@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { CodeMirrorEditor } from '../editor/CodeMirrorEditor'
 import { MarkdownPreview } from '../preview/MarkdownPreview'
 import { ResizeHandle } from '../common/ResizeHandle'
+import { FloatingSearchBar } from '../search/FloatingSearchBar'
 import { FileEdit, AlertTriangle, RotateCcw, Save, Eye } from 'lucide-react'
 
 export const SplitWorkspace: React.FC = () => {
@@ -53,7 +54,9 @@ export const SplitWorkspace: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-hidden">
+      <FloatingSearchBar />
+
       {/* Conflict Alert Banner */}
       {activeTab.hasExternalConflict && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-600/50 bg-amber-950/80 px-4 py-2 text-xs text-amber-200 shrink-0 select-none">

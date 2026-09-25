@@ -6,6 +6,12 @@ import { MermaidBlock } from './MermaidBlock'
 import { useWorkspaceStore, type TargetHeading } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { slugify, matchesAnchor } from '../../utils/slugify'
+import { useSearchStore } from '../../stores/searchStore'
+import {
+  buildSearchRegex,
+  highlightPreviewMatches,
+  clearPreviewHighlights,
+} from '../../utils/previewSearch'
 
 interface MarkdownPreviewProps {
   content: string
@@ -108,10 +114,20 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   targetAnchor,
   targetHeading,
   onScroll,
-  isInspector: _isInspector = false,
+  isInspector = false,
 }) => {
   const { openInspector, openFile, scrollToAnchor, setHoveredLinkUrl } = useWorkspaceStore()
   const { fontSize } = useSettingsStore()
+  const {
+    isOpen: isSearchOpen,
+    searchTerm,
+    caseSensitive,
+    wholeWord,
+    useRegex,
+    currentMatchIndex,
+    setMatchInfo,
+    actionTrigger,
+  } = useSearchStore()
   const internalContainerRef = useRef<HTMLDivElement>(null)
   const activeContainerRef = containerRef || internalContainerRef
 
@@ -259,6 +275,68 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     return () => clearTimeout(timeout)
   }, [targetHeading, targetAnchor, segments, activeContainerRef])
 
+  // Handle in-preview search highlighting and active match navigation
+  useEffect(() => {
+    if (isInspector) return // Do not affect side inspector
+    const container = activeContainerRef.current
+    if (!container) return
+
+    if (!isSearchOpen || !searchTerm) {
+      clearPreviewHighlights(container)
+      return
+    }
+
+    const regex = buildSearchRegex(searchTerm, caseSensitive, wholeWord, useRegex)
+    const { matchCount } = highlightPreviewMatches(container, regex, currentMatchIndex)
+
+    const isEditorActive = useWorkspaceStore.getState().viewMode !== 'preview'
+    if (!isEditorActive) {
+      setMatchInfo(matchCount, currentMatchIndex > 0 ? currentMatchIndex : matchCount > 0 ? 1 : 0)
+    }
+  }, [
+    isSearchOpen,
+    searchTerm,
+    caseSensitive,
+    wholeWord,
+    useRegex,
+    currentMatchIndex,
+    setMatchInfo,
+    content,
+    isInspector,
+    activeContainerRef,
+  ])
+
+  // Handle actionTrigger in preview-only mode (when editor is not handling it)
+  useEffect(() => {
+    if (isInspector) return
+    const isEditorActive = useWorkspaceStore.getState().viewMode !== 'preview'
+    if (isEditorActive || !isSearchOpen || !actionTrigger) return
+
+    const container = activeContainerRef.current
+    if (!container) return
+
+    const matches = Array.from(container.querySelectorAll('mark.mf-search-match'))
+    if (matches.length === 0) return
+
+    let nextIndex = currentMatchIndex
+    if (actionTrigger.type === 'findNext') {
+      nextIndex = currentMatchIndex >= matches.length ? 1 : currentMatchIndex + 1
+    } else if (actionTrigger.type === 'findPrev') {
+      nextIndex = currentMatchIndex <= 1 ? matches.length : currentMatchIndex - 1
+    }
+
+    setMatchInfo(matches.length, nextIndex)
+    matches.forEach((m, idx) => {
+      if (idx === nextIndex - 1) {
+        m.classList.add('mf-search-match-active')
+        m.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else {
+        m.classList.remove('mf-search-match-active')
+      }
+    })
+  }, [actionTrigger, isSearchOpen, currentMatchIndex, setMatchInfo, isInspector, activeContainerRef])
+
+
   // Intercept click on links:
   // - Link #4-aaa of SAME file:
   //    * Regular click: preview ONLY the content of section #4-aaa in Side Inspector
@@ -363,7 +441,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         // Regular Click: preview ONLY the content of section #4-aaa in Side Inspector
         if (anchor) {
           const docPath =
-            (_isInspector && useWorkspaceStore.getState().inspector.pathOrUrl) ||
+            (isInspector && useWorkspaceStore.getState().inspector.pathOrUrl) ||
             (activeTab ? activeTab.path : '')
           if (docPath) {
             openInspector('doc', docPath, anchor, true)

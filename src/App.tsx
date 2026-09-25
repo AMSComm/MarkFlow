@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import { useSettingsStore } from './stores/settingsStore'
+import { useSearchStore } from './stores/searchStore'
 import { AppHeader } from './components/layout/AppHeader'
 import { TabBar } from './components/tabs/TabBar'
 import { FileTree } from './components/explorer/FileTree'
@@ -139,6 +140,15 @@ export function App() {
       if (isMod && e.key.toLowerCase() === 'p') {
         e.preventDefault()
         toggleQuickSwitcher()
+      } else if (isMod && e.key.toLowerCase() === 'f' && !e.altKey) {
+        e.preventDefault()
+        useSearchStore.getState().openSearch({ showReplace: false })
+      } else if (isMod && (e.key.toLowerCase() === 'h' || (e.altKey && e.key.toLowerCase() === 'f'))) {
+        e.preventDefault()
+        useSearchStore.getState().openSearch({ showReplace: true })
+      } else if (e.key === 'Escape' && useSearchStore.getState().isOpen) {
+        e.preventDefault()
+        useSearchStore.getState().closeSearch()
       } else if (isMod && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         toggleSidebar()
